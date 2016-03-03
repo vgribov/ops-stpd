@@ -1379,6 +1379,179 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
     END_DB_TXN(txn);
 }
 
+
+/*-----------------------------------------------------------------------------
+ | Function:        mstp_cli_set_mist_port_state
+ | Responsibility:  Sets the MSTP instance port table port state paramters
+ | Parameters:
+ |      key:        MSTP instance column name
+ |      value:      Value to be set for the corresponding MSTP instance column
+ | Return:
+ |      CMD_SUCCESS:Config executed successfully.
+ |      CMD_OVSDB_FAILURE - DB failure.
+ ------------------------------------------------------------------------------
+ */
+static int
+mstp_cli_set_mist_port_state(const char *if_name, const int64_t instid,
+                                     const char *port_state) {
+    struct ovsdb_idl_txn *txn = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    const struct ovsrec_mstp_instance *mstp_row = NULL;
+    const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
+    int i = 0;
+
+    if (!(port_state && if_name)) {
+        VLOG_DBG("Invalid arguments for mstp_cli_set_mst_inst %s: %d\n",
+                __FILE__, __LINE__);
+        return e_vtysh_error;
+    }
+
+    START_DB_TXN(txn);
+
+    if (!MSTP_VALID_MSTID(instid)) {
+        ERRONEOUS_DB_TXN(txn, "Invalid InstanceID");
+    }
+
+    bridge_row = ovsrec_bridge_first(idl);
+    if (!bridge_row) {
+        ERRONEOUS_DB_TXN(txn, "No record found");
+    }
+
+    /* Find the MSTP instance entry matching with the instid */
+    for (i=0; i < bridge_row->n_mstp_instances; i++) {
+        if (bridge_row->key_mstp_instances[i] == instid) {
+            mstp_row = bridge_row->value_mstp_instances[i];
+            break;
+        }
+    }
+
+    /* Instance not created */
+    if (!mstp_row) {
+        ERRONEOUS_DB_TXN(txn,
+                "No MSTP instance found with this ID");
+    }
+
+    /* Find the MSTP instance port entry matching with the port index */
+    for (i=0; i < mstp_row->n_mstp_instance_ports; i++) {
+        if(!mstp_row->mstp_instance_ports[i]) {
+            assert(0);
+            ERRONEOUS_DB_TXN(txn, "No MSTP port record found");
+        }
+        if (VTYSH_STR_EQ(mstp_row->mstp_instance_ports[i]->port->name,
+                                                if_name)) {
+            mstp_port_row = mstp_row->mstp_instance_ports[i];
+            break;
+        }
+    }
+
+    if (!mstp_port_row) {
+        ERRONEOUS_DB_TXN(txn,
+                "No MSTP instance port found with this port index");
+    }
+
+    if (VTYSH_STR_EQ(port_state, MSTP_STATE_DISABLE)) {
+        ovsrec_mstp_instance_port_set_port_state(mstp_port_row, port_state);
+    }
+    else if (VTYSH_STR_EQ(port_state, MSTP_STATE_BLOCK)) {
+        ovsrec_mstp_instance_port_set_port_state(mstp_port_row, port_state);
+
+    }
+    else if (VTYSH_STR_EQ(port_state, MSTP_STATE_LEARN)) {
+        ovsrec_mstp_instance_port_set_port_state(mstp_port_row, port_state);
+
+    }
+    else if (VTYSH_STR_EQ(port_state, MSTP_STATE_FORWARD)) {
+        ovsrec_mstp_instance_port_set_port_state(mstp_port_row, port_state);
+    }
+    else {
+       ERRONEOUS_DB_TXN(txn,
+                    "invalid port state");;
+    }
+
+    /* End of transaction. */
+    END_DB_TXN(txn);
+}
+
+/*-----------------------------------------------------------------------------
+ | Function:        mstp_cli_set_cist_port_state
+ | Responsibility:  Sets the MSTP cist port table port state paramters
+ | Parameters:
+ |      key:        MSTP instance column name
+ |      value:      Value to be set for the corresponding MSTP instance column
+ | Return:
+ |      CMD_SUCCESS:Config executed successfully.
+ |      CMD_OVSDB_FAILURE - DB failure.
+ ------------------------------------------------------------------------------
+ */
+static int
+mstp_cli_set_cist_port_state(const char *if_name, const char *port_state) {
+    struct ovsdb_idl_txn *txn = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    const struct ovsrec_mstp_common_instance *cist_row = NULL;
+    const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    int i = 0;
+
+    if (!(port_state && if_name)) {
+        VLOG_DBG("Invalid arguments for mstp_cli_set_cist_port_state %s: %d\n",
+                __FILE__, __LINE__);
+        return e_vtysh_error;
+    }
+
+    START_DB_TXN(txn);
+
+    bridge_row = ovsrec_bridge_first(idl);
+    if (!bridge_row) {
+        ERRONEOUS_DB_TXN(txn, "No record found");
+    }
+
+    if (!bridge_row->mstp_common_instance) {
+            ERRONEOUS_DB_TXN(txn,
+                    "No CIST instance found");
+    }
+
+    cist_row = bridge_row->mstp_common_instance;
+
+    /* Find the MSTP instance port entry matching with the port index */
+
+    for (i=0; i < cist_row->n_mstp_common_instance_ports; i++) {
+        if(!cist_row->mstp_common_instance_ports[i]) {
+            ERRONEOUS_DB_TXN(txn, "No CIST port record found");
+        }
+        if (VTYSH_STR_EQ(cist_row->mstp_common_instance_ports[i]->port->name,
+                                                if_name)) {
+            cist_port_row = cist_row->mstp_common_instance_ports[i];
+            break;
+        }
+    }
+
+    if (!cist_port_row) {
+        ERRONEOUS_DB_TXN(txn,
+                "No cist port found with this port index");
+    }
+
+    if (VTYSH_STR_EQ(port_state, MSTP_STATE_DISABLE)) {
+        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, port_state);
+    }
+    else if (VTYSH_STR_EQ(port_state, MSTP_STATE_BLOCK)) {
+        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, port_state);
+
+    }
+    else if (VTYSH_STR_EQ(port_state, MSTP_STATE_LEARN)) {
+        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, port_state);
+
+    }
+    else if (VTYSH_STR_EQ(port_state, MSTP_STATE_FORWARD)) {
+        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, port_state);
+    }
+    else {
+       ERRONEOUS_DB_TXN(txn,
+                    "invalid port state");;
+    }
+
+    /* End of transaction. */
+    END_DB_TXN(txn);
+}
+
 DEFUN(cli_mstp_func,
       cli_mstp_func_cmd,
       "spanning-tree",
@@ -1809,6 +1982,36 @@ DEFUN(cli_no_mstp_transmit_hold_count,
     return CMD_SUCCESS;
 }
 
+DEFUN_HIDDEN(cli_mstp_inst_port_state,
+      cli_mstp_inst_port_state_cmd,
+      "spanning-tree instance <1-64> port-state (Disabled | Blocking | Learning | Forwarding)",
+      SPAN_TREE
+      MST_INST
+      "Enter an integer number\n"
+      "Set port state\n"
+      "Disabled\n"
+      "Blocking\n"
+      "Learning\n"
+      "Forwarding\n") {
+
+    mstp_cli_set_mist_port_state(vty->index, atoi(argv[0]), argv[1]);
+    return CMD_SUCCESS;
+}
+
+DEFUN_HIDDEN(cli_mstp_port_state,
+      cli_mstp_port_state_cmd,
+      "spanning-tree port-state (Disabled | Blocking | Learning | Forwarding)",
+      SPAN_TREE
+      "Set port state\n"
+      "Disabled\n"
+      "Blocking\n"
+      "Learning\n"
+      "Forwarding\n") {
+
+    mstp_cli_set_cist_port_state(vty->index, argv[0]);
+    return CMD_SUCCESS;
+}
+
 /* MSTP Show commands*/
 DEFUN(show_spanning_tree,
       show_spanning_tree_cmd,
@@ -2009,6 +2212,8 @@ void cli_post_init(void) {
     install_element(INTERFACE_NODE, &cli_no_mstp_inst_port_priority_cmd);
     install_element(INTERFACE_NODE, &cli_mstp_inst_cost_cmd);
     install_element(INTERFACE_NODE, &cli_no_mstp_inst_cost_cmd);
+    install_element(INTERFACE_NODE, &cli_mstp_inst_port_state_cmd);
+    install_element(INTERFACE_NODE, &cli_mstp_port_state_cmd);
 
     /* show commands */
     install_element(ENABLE_NODE, &show_spanning_tree_cmd);

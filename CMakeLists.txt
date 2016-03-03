@@ -14,3 +14,6 @@
 
 # Build ops-stpd cli shared libraries.
 add_subdirectory(src/cli)
+
+# Build switchd stp plugin shared libraries.
+add_subdirectory(plugins)
