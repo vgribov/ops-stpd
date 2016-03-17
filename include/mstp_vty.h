@@ -38,63 +38,19 @@
 typedef enum mstp_flags
 {
   MSTP_INVALID_ID = -1,
-  MSTP_ADD_VLAN_TO_INSTANCE = 0,
-  MSTP_REMOVE_INSTANCE,
-  MSTP_REMOVE_VLAN_FROM_INSTANCE
 } mstp_flag;
 
-
-/*
-** depending on the outcome of the db transaction, returns
-** the appropriate value for the cli command execution.
-*/
-inline static int
-cli_command_result (enum ovsdb_idl_txn_status status)
-{
-    if ((status == TXN_SUCCESS) || (status == TXN_UNCHANGED)) {
-        return CMD_SUCCESS;
-    }
-    return CMD_WARNING;
-}
-/******************** standard database txn operations ***********************/
-
-#define START_DB_TXN(txn)                                       \
-    do {                                                        \
-        txn = cli_do_config_start();                            \
-        if (txn == NULL) {                                      \
-            VLOG_DBG("ovsdb_idl_txn_create failed: %s: %d\n",   \
-                    __FILE__, __LINE__);                            \
-            vty_out(vty, "Transaction Failed\n");                   \
-            cli_do_config_abort(txn);                               \
-            return CMD_OVSDB_FAILURE;                               \
-        }                                                           \
-    } while (0)
-
-#define END_DB_TXN(txn)                                   \
-    do {                                                  \
-        enum ovsdb_idl_txn_status status;                 \
-        status = cli_do_config_finish(txn);               \
-        return cli_command_result(status);                \
-    } while (0)
-
-#define ERRONEOUS_DB_TXN(txn, error_message)                        \
-    do {                                                            \
-        cli_do_config_abort(txn);                                   \
-        VLOG_DBG("database transaction failed: %s: %d -- %s\n",     \
-                __FILE__, __LINE__, error_message);                 \
-        vty_out(vty, "%s\n", error_message);                        \
-        return CMD_WARNING;                                         \
-    } while (0)
-
-/* used when NO error is detected but still need to terminate */
-#define ABORT_DB_TXN(txn, message)                             \
-    do {                                                       \
-        cli_do_config_abort(txn);                                   \
-        VLOG_DBG("database transaction aborted: %s: %d, %s\n",  \
-                __FILE__, __LINE__, message);                       \
-        return CMD_SUCCESS;                                         \
-    } while (0)
-
+#define SPAN_TREE       "Spanning-tree configuration\n"
+#define MST_INST        "Create, delete or configure an MST instance\n"
+#define BPDU_GUARD      "Disable the specific port or ports if the port(s) receives MSTP BPDUs\n"
+#define ROOT_GUARD      "Set port to ignore superior BPDUs to prevent it from becoming root port\n"
+#define LOOP_GUARD      "Set port to guard against the loop and consequently to prevent it from becoming forwarding port\n"
+#define BPDU_FILTER     "Stop a specific port or ports from transmitting BPDUs, receiving BPDUs, and assume a continuous fowarding state\n"
+#define BRIDGE_PRIORITY "Set the device priority multiplier. This value will be multiplied by 4096 such that the device priority range will be 0-61440. The default value is 8.\n"
+#define INST_PRIORITY   "Set the device priority multiplier for the MST instance. This value will be multiplied by 4096 such that the device priority range will be 0-61440. The default value is 8.\n"
+#define PORT_PRIORITY   "Set port priority multiplier. This value will be multiplied by 16 such that the range will be 0-240. The default value is 8\n"
+#define FORWARD_DELAY   "Set time the switch waits between transitioning from listening to learning & from learning to forwarding\n"
+#define MAX_HOPS        "Set the max number of hops in a region before the MST BPDU is discarded and the information held for a port is\n"
 
 #define STATUS_ENABLE                "enable"
 #define STATUS_DISABLE               "disable"

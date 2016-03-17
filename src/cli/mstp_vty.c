@@ -41,6 +41,7 @@
 #include "openswitch-idl.h"
 #include "vtysh/vtysh_ovsdb_if.h"
 #include "vtysh/vtysh_ovsdb_config.h"
+#include "vtysh/utils/ovsdb_vtysh_utils.h"
 #include "mstp_vty.h"
 #include "vtysh_ovsdb_mstp_context.h"
 
