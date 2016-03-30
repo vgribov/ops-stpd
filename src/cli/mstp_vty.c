@@ -46,186 +46,8 @@
 #include "vtysh_ovsdb_mstp_context.h"
 
 extern struct ovsdb_idl *idl;
-bool init_required = true;
 
 VLOG_DEFINE_THIS_MODULE(vtysh_mstp_cli);
-
-/*-----------------------------------------------------------------------------
- | Function:        mstp_util_add_default_ports_to_cist
- | Responsibility:  Add all L2 VLANs to common instance table
- | Parameters:
- | Return:
- |      CMD_SUCCESS - Config executed successfully.
- |      CMD_OVSDB_FAILURE - DB failure.
- ------------------------------------------------------------------------------
- */
-static int
-mstp_util_add_default_ports_to_cist() {
-
-    struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
-    struct ovsrec_mstp_common_instance_port **cist_port_info = NULL;
-    struct ovsdb_idl_txn *txn = NULL;
-    const struct ovsrec_bridge *bridge_row = NULL;
-    const struct ovsrec_mstp_common_instance *cist_row = NULL;
-    int64_t i = 0, j = 0;
-
-    int64_t cist_hello_time = DEF_HELLO_TIME;
-    int64_t cist_port_priority = DEF_MSTP_PORT_PRIORITY;
-    int64_t admin_path_cost = 0;
-    struct ovsrec_vlan **vlans = NULL;
-
-    START_DB_TXN(txn);
-
-    bridge_row = ovsrec_bridge_first(idl);
-    if (!bridge_row) {
-        ERRONEOUS_DB_TXN(txn, "No record found");
-    }
-
-    cist_row = ovsrec_mstp_common_instance_first (idl);
-    if (!cist_row) {
-        ERRONEOUS_DB_TXN(txn, "No MSTP common instance record found");
-    }
-
-    /* Add CIST port entry for all ports to the CIST table */
-    cist_port_info =
-            xcalloc((bridge_row->n_ports - 1),
-            sizeof *cist_row->mstp_common_instance_ports);
-    if(!cist_port_info) {
-        ERRONEOUS_DB_TXN(txn, "NO MSTP common instance port record found");
-    }
-
-    for (i = 0, j = 0; i < bridge_row->n_ports; i++) {
-
-        /* "bridge_normal" is not really a port, ignore it */
-        if(VTYSH_STR_EQ(bridge_row->ports[i]->name, DEFAULT_BRIDGE_NAME)) {
-            continue;
-        }
-
-        /* create CIST_port entry */
-        cist_port_row = ovsrec_mstp_common_instance_port_insert(txn);
-        if (!cist_port_row) {
-            vty_out(vty, "Memory allocation failed%s", VTY_NEWLINE);
-            break;
-        }
-        /* FILL the default values for CIST_port entry */
-        ovsrec_mstp_common_instance_port_set_port( cist_port_row,
-                                                      bridge_row->ports[i]);
-        ovsrec_mstp_common_instance_port_set_port_state( cist_port_row,
-                                                      MSTP_STATE_BLOCK);
-        ovsrec_mstp_common_instance_port_set_port_role( cist_port_row,
-                                                      MSTP_ROLE_DISABLE);
-        ovsrec_mstp_common_instance_port_set_admin_path_cost( cist_port_row,
-                                                      &admin_path_cost, 1);
-        ovsrec_mstp_common_instance_port_set_port_priority( cist_port_row,
-                                                      &cist_port_priority, 1);
-        ovsrec_mstp_common_instance_port_set_link_type( cist_port_row,
-                                                      DEF_LINK_TYPE);
-        ovsrec_mstp_common_instance_port_set_port_hello_time( cist_port_row,
-                                                      &cist_hello_time, 1);
-        cist_port_info[j++] = cist_port_row;
-    }
-
-    ovsrec_mstp_common_instance_set_mstp_common_instance_ports (cist_row,
-                                    cist_port_info, bridge_row->n_ports - 1);
-    vlans = xcalloc(bridge_row->n_vlans, sizeof *bridge_row->vlans);
-    if (!vlans) {
-        ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
-    }
-    for (i = 0; i < bridge_row->n_vlans; i++) {
-        vlans[i] = bridge_row->vlans[i];
-    }
-
-    ovsrec_mstp_common_instance_set_vlans(cist_row, vlans, bridge_row->n_vlans);
-    free(vlans);
-    free(cist_port_info);
-    END_DB_TXN(txn);
-}
-
-/*-----------------------------------------------------------------------------
- | Function:        mstp_util_set_defaults
- | Responsibility:  Set default values for MSTP instance table & instance port
- | Parameters:
- | Return:
- |      CMD_SUCCESS:Config executed successfully.
- |      CMD_OVSDB_FAILURE - DB failure.
- ------------------------------------------------------------------------------
- */
-static int
-mstp_util_set_defaults() {
-
-    const struct ovsrec_mstp_common_instance *cist_row = NULL;
-    const struct ovsrec_system *system_row = NULL;
-    const int64_t cist_top_change_count = 0;
-    struct ovsdb_idl_txn *txn = NULL;
-    time_t cist_time_since_top_change;
-    const int64_t cist_priority = DEF_BRIDGE_PRIORITY;
-    const int64_t hello_time = DEF_HELLO_TIME;
-    const int64_t fwd_delay = DEF_FORWARD_DELAY;
-    const int64_t max_age = DEF_MAX_AGE;
-    const int64_t max_hops = DEF_MAX_HOPS;
-    const int64_t tx_hold_cnt = DEF_HOLD_COUNT;
-    const struct ovsrec_bridge *bridge_row = NULL;
-    struct smap smap = SMAP_INITIALIZER(&smap);
-
-    START_DB_TXN(txn);
-
-    system_row = ovsrec_system_first(idl);
-    if (!system_row) {
-        ERRONEOUS_DB_TXN(txn, "No record found.");
-    }
-
-    bridge_row = ovsrec_bridge_first(idl);
-    if (!bridge_row) {
-        ERRONEOUS_DB_TXN(txn, "No record found");
-    }
-
-    time(&cist_time_since_top_change);
-    smap_clone(&smap, &bridge_row->other_config);
-
-    /* If config name is NULL, Set the system mac as config-name */
-    if (!smap_get(&bridge_row->other_config, MSTP_CONFIG_NAME)) {
-        smap_replace (&smap, MSTP_CONFIG_NAME, system_row->system_mac);
-    }
-
-    /* If config revision number is NULL, Set the system mac as config-name */
-    if (!smap_get(&bridge_row->other_config, MSTP_CONFIG_REV)) {
-        smap_replace (&smap, MSTP_CONFIG_REV, DEF_CONFIG_REV);
-    }
-
-    ovsrec_bridge_set_other_config(bridge_row, &smap);
-    smap_destroy(&smap);
-
-    cist_row = ovsrec_mstp_common_instance_first (idl);
-    if (!cist_row) {
-
-        /* Crate a CIST instance */
-        cist_row = ovsrec_mstp_common_instance_insert(txn);
-        if (!cist_row) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
-        }
-        /* updating the default values to the CIST table */
-        ovsrec_mstp_common_instance_set_hello_time(cist_row, &hello_time, 1);
-        ovsrec_mstp_common_instance_set_priority(cist_row, &cist_priority, 1);
-        ovsrec_mstp_common_instance_set_forward_delay(cist_row, &fwd_delay,1);
-        ovsrec_mstp_common_instance_set_max_age(cist_row, &max_age, 1);
-        ovsrec_mstp_common_instance_set_max_hop_count(cist_row, &max_hops, 1);
-        ovsrec_mstp_common_instance_set_tx_hold_count(cist_row, &tx_hold_cnt,1);
-        ovsrec_mstp_common_instance_set_regional_root(cist_row,
-                                                      system_row->system_mac);
-        ovsrec_mstp_common_instance_set_bridge_identifier(cist_row,
-                                                      system_row->system_mac);
-        ovsrec_mstp_common_instance_set_top_change_cnt(cist_row,
-                                                     &cist_top_change_count, 1);
-        ovsrec_mstp_common_instance_set_time_since_top_change(cist_row,
-                                     (int64_t *)&cist_time_since_top_change, 1);
-
-        /* Add the CIST instance to bridge table */
-        ovsrec_bridge_set_mstp_common_instance(bridge_row, cist_row);
-    }
-
-    END_DB_TXN(txn);
-}
-
 /*-----------------------------------------------------------------------------
  | Function:        mstp_util_get_mstid_for_vlanID
  | Responsibility:  Utility API to get the instance ID to which the VLAN belongs
@@ -968,19 +790,6 @@ mstp_cli_set_bridge_table (const char *key, const char *value) {
                 __FILE__, __LINE__);
         return e_vtysh_error;
     }
-
-    /* TODO This part of initialization need to move to MSTP daemon */
-    if (VTYSH_STR_EQ(key, MSTP_ADMIN_STATUS)) {
-        mstp_enable = (VTYSH_STR_EQ(value, STATUS_ENABLE))?true:false;
-
-        /* Set the default config-name at the time of enable spanning-tree */
-        if((mstp_enable == true) && (init_required == true)) {
-            mstp_util_set_defaults();
-            mstp_util_add_default_ports_to_cist();
-            init_required = false;
-        }
-    }
-
     START_DB_TXN(txn);
 
     bridge_row = ovsrec_bridge_first(idl);
@@ -989,6 +798,7 @@ mstp_cli_set_bridge_table (const char *key, const char *value) {
     }
 
     if (VTYSH_STR_EQ(key, MSTP_ADMIN_STATUS)) {
+        mstp_enable = (VTYSH_STR_EQ(value, STATUS_ENABLE))?true:false;
         ovsrec_bridge_set_mstp_enable(bridge_row, &mstp_enable, 1);
     }
     else if((VTYSH_STR_EQ(key, MSTP_CONFIG_NAME)) ||
@@ -1239,6 +1049,8 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
     int64_t mstp_old_inst_id = 0, *instId_list = NULL;
     int i = 0, j = 0;
     int64_t port_priority = DEF_MSTP_PORT_PRIORITY;
+    int64_t priority = DEF_BRIDGE_PRIORITY;
+    int64_t admin_path_cost = 0;
 
     int vlan_id =(vlanid)? atoi(vlanid):MSTP_INVALID_ID;
 
@@ -1311,6 +1123,8 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
 
         ovsrec_mstp_instance_set_vlans(mstp_row,
                 (struct ovsrec_vlan **)&vlan_row, 1);
+        ovsrec_mstp_instance_set_priority(mstp_row,
+                &priority, 1);
 
         /* Add CSTI instance for all ports to the CIST table */
         mstp_inst_port_info =
@@ -1341,6 +1155,8 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
                                                       MSTP_ROLE_DISABLE);
             ovsrec_mstp_instance_port_set_port_priority(mstp_inst_port_row,
                                                         &port_priority, 1 );
+            ovsrec_mstp_instance_port_set_admin_path_cost(mstp_inst_port_row,
+                                                        &admin_path_cost, 1);
             ovsrec_mstp_instance_port_set_port(mstp_inst_port_row,
                                                bridge_row->ports[i]);
             mstp_inst_port_info[j++] = mstp_inst_port_row;
