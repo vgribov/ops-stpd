@@ -114,54 +114,55 @@ cli_show_spanning_tree_config() {
         return e_vtysh_error;
     }
 
+    if (!(bridge_row->mstp_enable) ||
+            (*bridge_row->mstp_enable == DEF_ADMIN_STATUS)) {
+        vty_out(vty, "Spanning-tree is disabled%s", VTY_NEWLINE);
+        return e_vtysh_ok;
+    }
+
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
         vty_out(vty, "No MSTP common instance record found%s", VTY_NEWLINE);
         return e_vtysh_error;
     }
 
-    if ((bridge_row->mstp_enable) &&
-            (*bridge_row->mstp_enable != DEF_ADMIN_STATUS)) {
-        vty_out(vty, "%s%s", "MST0", VTY_NEWLINE);
-        vty_out(vty, "  %s%s", "Spanning tree status: Enabled", VTY_NEWLINE);
-        vty_out(vty, "  %-10s %-10s: %-20ld%s", "Root ID", "Priority",
-                                             *cist_row->priority, VTY_NEWLINE);
-        vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
-                                          system_row->system_mac, VTY_NEWLINE);
-        if (VTYSH_STR_EQ(system_row->system_mac, cist_row->regional_root)) {
-            vty_out(vty, "  %34s%s", "This bridge is the root", VTY_NEWLINE);
-        }
-        vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
-                "Hello time(in seconds):", *cist_row->hello_time,
-                "Max Age(in seconds):", *cist_row->max_age,
-                "Forward Delay(in seconds):", *cist_row->forward_delay,
-                VTY_NEWLINE);
-
-        vty_out(vty, "%s  %-10s %-10s: %-20ld%s", VTY_NEWLINE, "Bridge ID",
-                     "Priority", *cist_row->priority, VTY_NEWLINE);
-        vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
-                     system_row->system_mac, VTY_NEWLINE);
-        vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
-                "Hello time(in seconds):", *cist_row->hello_time,
-                "Max Age(in seconds):", *cist_row->max_age,
-                "Forward Delay(in seconds):", *cist_row->forward_delay,
-                VTY_NEWLINE);
-
-        vty_out(vty, "%s%-12s %-14s %-10s %-7s %-10s %s%s", VTY_NEWLINE,
-              "Port", "Role", "State", "Cost", "Priority", "Type", VTY_NEWLINE);
-        vty_out(vty, "%s %s%s",
-                     "------------ --------------",
-                     "---------- ------- ---------- ----------", VTY_NEWLINE);
-        OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
-            vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
-                    cist_port->port->name, cist_port->port_role,
-                    cist_port->port_state, *cist_port->admin_path_cost,
-                    *cist_port->port_priority, cist_port->link_type,
-                    VTY_NEWLINE);
-        }
+    vty_out(vty, "%s%s", "MST0", VTY_NEWLINE);
+    vty_out(vty, "  %s%s", "Spanning tree status: Enabled", VTY_NEWLINE);
+    vty_out(vty, "  %-10s %-10s: %-20ld%s", "Root ID", "Priority",
+            *cist_row->priority, VTY_NEWLINE);
+    vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
+            (cist_row->designated_root)?cist_row->designated_root:system_row->system_mac,
+            VTY_NEWLINE);
+    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
+        vty_out(vty, "  %34s%s", "This bridge is the root", VTY_NEWLINE);
     }
-    else {
-        vty_out(vty, "Spanning-tree is disabled%s", VTY_NEWLINE);
+    vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
+            "Hello time(in seconds):", *cist_row->hello_time,
+            "Max Age(in seconds):", *cist_row->max_age,
+            "Forward Delay(in seconds):", *cist_row->forward_delay,
+            VTY_NEWLINE);
+
+    vty_out(vty, "%s  %-10s %-10s: %-20ld%s", VTY_NEWLINE, "Bridge ID",
+            "Priority", *cist_row->priority, VTY_NEWLINE);
+    vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
+            system_row->system_mac, VTY_NEWLINE);
+    vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
+            "Hello time(in seconds):", *cist_row->hello_time,
+            "Max Age(in seconds):", *cist_row->max_age,
+            "Forward Delay(in seconds):", *cist_row->forward_delay,
+            VTY_NEWLINE);
+
+    vty_out(vty, "%s%-12s %-14s %-10s %-7s %-10s %s%s", VTY_NEWLINE,
+            "Port", "Role", "State", "Cost", "Priority", "Type", VTY_NEWLINE);
+    vty_out(vty, "%s %s%s",
+            "------------ --------------",
+            "---------- ------- ---------- ----------", VTY_NEWLINE);
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
+                cist_port->port->name, cist_port->port_role,
+                cist_port->port_state, *cist_port->admin_path_cost,
+                *cist_port->port_priority, cist_port->link_type,
+                VTY_NEWLINE);
     }
     return e_vtysh_ok;
 }
@@ -190,12 +191,12 @@ cli_show_mstp_config() {
         vty_out(vty, "%s%s", "MST configuration information", VTY_NEWLINE);
         vty_out(vty, "   %-20s : %-15s%s", "MST config ID",
             smap_get(&bridge_row->other_config, MSTP_CONFIG_NAME), VTY_NEWLINE);
-        vty_out(vty, "   %-20s : %-15d %s", "MST config revision",
+        vty_out(vty, "   %-20s : %-15d%s", "MST config revision",
                 atoi(smap_get(&bridge_row->other_config, MSTP_CONFIG_REV)),
                 VTY_NEWLINE);
-        /*vty_out(vty, "   %-30s : %-15s %s", "MST Configuration Digest",
-          smap_get(&bridge_row->other_config, MSTP_CONFIG_DIGEST), VTY_NEWLINE);*/
-        vty_out(vty, "   %-20s : %-15ld %s", "Number of instances",
+        vty_out(vty, "   %-20s : %-15s%s", "MST config digest",
+          smap_get(&bridge_row->other_config, MSTP_CONFIG_DIGEST), VTY_NEWLINE);
+        vty_out(vty, "   %-20s : %-15ld%s", "Number of instances",
                 bridge_row->n_mstp_instances, VTY_NEWLINE);
 
         vty_out(vty, "%s%-15s %-18s%s", VTY_NEWLINE, "Instance ID",
@@ -255,11 +256,11 @@ mstp_show_common_instance_info(
     vty_out(vty, "%-14s %s:%-15s    %s:%ld%s", "Bridge", "address",
             system_row->system_mac, "priority", *cist_row->priority,
             VTY_NEWLINE);
-    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->regional_root)) {
+    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
         vty_out(vty, "%-14s %s%s", "Root", "this switch for the CIST",
                 VTY_NEWLINE);
     }
-    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
+    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->regional_root)) {
         vty_out(vty, "%-14s %s%s", "Regional Root", "this switch", VTY_NEWLINE);
     }
     vty_out(vty, "%-14s %s:%2ld  %s:%2ld  %s:%2ld  %s:%2ld%s", "Operational",
@@ -402,7 +403,8 @@ cli_show_mst() {
         return e_vtysh_error;
     }
 
-    if (*bridge_row->mstp_enable != DEF_ADMIN_STATUS) {
+    if ((bridge_row->mstp_enable) &&
+            (*bridge_row->mstp_enable != DEF_ADMIN_STATUS)) {
         cist_row = ovsrec_mstp_common_instance_first (idl);
         if (!cist_row) {
             vty_out(vty, "No MSTP common instance record found.%s", VTY_NEWLINE);
@@ -609,7 +611,8 @@ cli_show_mstp_intf_config() {
 
             /* MST instance commands if port name matches */
             if(!mstp_row) {
-                continue;
+                assert(0);
+                return e_vtysh_error;
             }
             /* Loop for all ports in the instance table */
             for (k=0; k<mstp_row->n_mstp_instance_ports; k++) {

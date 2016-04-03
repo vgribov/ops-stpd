@@ -94,6 +94,7 @@ typedef enum mstp_flags
 #define MSTP_PORT_COST              "mstp_admin_path_cost"
 #define MSTP_CONFIG_REV             "mstp_config_revision"
 #define MSTP_CONFIG_NAME            "mstp_config_name"
+#define MSTP_CONFIG_DIGEST          "mstp_config_digest"
 #define MSTP_INSTANCE_CONFIG        "mstp_instances_configured"
 
 /************ MSTP_CONFIG OF PORT TABLE **************************/
