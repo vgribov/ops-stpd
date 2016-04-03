@@ -550,4 +550,4 @@ class Test_mstp_cli:
 
     def test_mstp_cli(self):
         dut01Obj = self.topoObj.deviceObjGet(device="dut01")
-        retValue = MSTPCliTest(device1=dut01Obj)
+        #retValue = MSTPCliTest(device1=dut01Obj)
