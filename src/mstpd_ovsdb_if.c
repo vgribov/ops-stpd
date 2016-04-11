@@ -380,7 +380,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_table(idl, &ovsrec_table_mstp_common_instance_port);
 
     /* MSTP Instance Table. */
-    ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_topology_change_disable);
+    ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_topology_unstable);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_time_since_top_change);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_hardware_grp_id);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_designated_root);
@@ -389,7 +389,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_mstp_instance_ports);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_bridge_identifier);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_root_path_cost);
-    ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_top_change_cnt);
+    ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_topology_change_count);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_vlans);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_root_priority);
 
@@ -408,6 +408,7 @@ mstpd_ovsdb_init(const char *db_path)
 
     /* mstp common instance table */
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_remaining_hops);
+    ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_topology_unstable);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_mstp_common_instance_ports);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_forward_delay_expiry_time);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_regional_root);
@@ -424,7 +425,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_cist_path_cost);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_oper_max_age);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_oper_hello_time);
-    ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_top_change_cnt);
+    ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_topology_change_count);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_vlans);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_bridge_identifier);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_col_time_since_top_change);
@@ -2174,6 +2175,7 @@ util_add_default_ports_to_cist() {
     struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
+    struct ovsrec_vlan **vlans = NULL;
     int64_t i = 0,j = 0;
 
     int64_t cist_hello_time = DEF_HELLO_TIME;
@@ -2245,7 +2247,21 @@ util_add_default_ports_to_cist() {
 
     ovsrec_mstp_common_instance_set_mstp_common_instance_ports (cist_row,
             cist_port_info, bridge_row->n_ports-1);
+
+    vlans = xcalloc(bridge_row->n_vlans, sizeof *bridge_row->vlans);
+    if (!vlans) {
+        ovsdb_idl_txn_destroy(txn);
+        free(cist_port_info);
+        return;
+    }
+
+    for (i = 0; i < bridge_row->n_vlans; i++) {
+        vlans[i] = bridge_row->vlans[i];
+    }
+    ovsrec_mstp_common_instance_set_vlans(cist_row, vlans, bridge_row->n_vlans);
+
     free(cist_port_info);
+    free(vlans);
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
 }
@@ -2325,7 +2341,7 @@ util_mstp_set_defaults() {
                 system_row->system_mac);
         ovsrec_mstp_common_instance_set_bridge_identifier(cist_row,
                 system_row->system_mac);
-        ovsrec_mstp_common_instance_set_top_change_cnt(cist_row,
+        ovsrec_mstp_common_instance_set_topology_change_count(cist_row,
                 &cist_top_change_count, 1);
         ovsrec_mstp_common_instance_set_time_since_top_change(cist_row,
                 (int64_t *)&cist_time_since_top_change, 1);
@@ -2437,7 +2453,7 @@ mstp_util_set_cist_table_value (const char *key, int64_t value) {
         ovsrec_mstp_common_instance_set_oper_tx_hold_count(cist_row, &value, 1);
     }
     else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
-        ovsrec_mstp_common_instance_set_top_change_cnt(cist_row, &value, 1);
+        ovsrec_mstp_common_instance_set_topology_change_count(cist_row, &value, 1);
     }
     /* End of transaction. */
     ovsdb_idl_txn_commit_block(txn);
@@ -2640,7 +2656,7 @@ mstp_util_set_msti_table_string (const char *key, const char *string, int mstid)
     }
     else if (strcmp(key, TOPOLOGY_CHANGE) == 0) {
         bool value = (strcmp(string,"enable") == 0)?TRUE:FALSE;
-        ovsrec_mstp_instance_set_topology_change_disable(msti_row, &value, 1);
+        ovsrec_mstp_instance_set_topology_unstable(msti_row, &value, 1);
     }
 
     /* End of transaction. */
@@ -2692,7 +2708,7 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
         ovsrec_mstp_instance_set_time_since_top_change(msti_row, &value, 1);
     }
     else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
-        ovsrec_mstp_instance_set_top_change_cnt(msti_row, &value, 1);
+        ovsrec_mstp_instance_set_topology_change_count(msti_row, &value, 1);
     }
     /* End of transaction. */
     ovsdb_idl_txn_commit_block(txn);
@@ -2849,22 +2865,22 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
 void mstp_convertPortRoleEnumToString(MSTP_PORT_ROLE_t role,char *string)
 {
     if(role == MSTP_PORT_ROLE_ROOT) {
-        strcpy(string,"root_port");
+        strcpy(string, MSTP_ROLE_ROOT);
     }
     else if (role == MSTP_PORT_ROLE_ALTERNATE) {
-        strcpy(string,"alternate_port");
+        strcpy(string, MSTP_ROLE_ALTERNATE);
     }
     else if (role == MSTP_PORT_ROLE_DESIGNATED) {
-        strcpy(string,"designated_port");
+        strcpy(string, MSTP_ROLE_DESIGNATE);
     }
     else if (role == MSTP_PORT_ROLE_BACKUP) {
-        strcpy(string,"backup_port");
+        strcpy(string, MSTP_ROLE_BACKUP);
     }
     else if (role == MSTP_PORT_ROLE_DISABLED) {
-        strcpy(string,"disabled_port");
+        strcpy(string, MSTP_ROLE_DISABLE);
     }
     else if (role == MSTP_PORT_ROLE_MASTER) {
-        strcpy(string,"master_port");
+        strcpy(string, MSTP_ROLE_MASTER);
     }
 }
 

@@ -5278,7 +5278,7 @@ mstp_updtRolesCist(void)
       mstp_updateCstRootHistory(cistRootPriVec.rootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rootID,
                         cistRootPriVec.rootID,TRUE,MSTP_CISTID);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%x:%x:%x:%x:%x:%x",cistRootPriVec.rootID.mac_address[0],
+      snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistRootPriVec.rootID.mac_address[0],
                 cistRootPriVec.rootID.mac_address[1],cistRootPriVec.rootID.mac_address[2],
                 cistRootPriVec.rootID.mac_address[3],cistRootPriVec.rootID.mac_address[4],
                 cistRootPriVec.rootID.mac_address[5]);
@@ -5296,7 +5296,7 @@ mstp_updtRolesCist(void)
       mstp_updateIstRootHistory(cistRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rgnRootID,
                         cistRootPriVec.rgnRootID,FALSE,MSTP_CISTID);
-      snprintf(regionalRoot,MSTP_ROOT_ID,"%x:%x:%x:%x:%x:%x",cistRootPriVec.rgnRootID.mac_address[0],
+      snprintf(regionalRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistRootPriVec.rgnRootID.mac_address[0],
                 cistRootPriVec.rgnRootID.mac_address[1],cistRootPriVec.rgnRootID.mac_address[2],
                 cistRootPriVec.rgnRootID.mac_address[3],cistRootPriVec.rgnRootID.mac_address[4],
                 cistRootPriVec.rgnRootID.mac_address[5]);
@@ -5434,7 +5434,7 @@ mstp_updtRolesCist(void)
           *------------------------------------------------------------------*/
          char designatedRoot[MSTP_ROOT_ID] = {0};
          cistPortPtr->designatedPriority = MSTP_CIST_ROOT_PRIORITY;
-         snprintf(designatedRoot,MSTP_ROOT_ID,"%x:%x:%x:%x:%x:%x",cistPortPtr->designatedPriority.rootID.mac_address[0],
+         snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistPortPtr->designatedPriority.rootID.mac_address[0],
                  cistPortPtr->designatedPriority.rootID.mac_address[1],cistPortPtr->designatedPriority.rootID.mac_address[2],
                  cistPortPtr->designatedPriority.rootID.mac_address[3],cistPortPtr->designatedPriority.rootID.mac_address[4],
                  cistPortPtr->designatedPriority.rootID.mac_address[5]);
@@ -5446,7 +5446,7 @@ mstp_updtRolesCist(void)
          char designatedBridge[MSTP_ROOT_ID] = {0};
          cistPortPtr->designatedPriority.dsnBridgeID =
              MSTP_CIST_BRIDGE_IDENTIFIER;
-         snprintf(designatedBridge,MSTP_ROOT_ID,"%x:%x:%x:%x:%x:%x",cistPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
+         snprintf(designatedBridge,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[1],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[3],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
@@ -5463,7 +5463,7 @@ mstp_updtRolesCist(void)
              char regionalRoot[MSTP_ROOT_ID] = {0};
              cistPortPtr->designatedPriority.rgnRootID =
                  MSTP_CIST_BRIDGE_IDENTIFIER;
-             snprintf(regionalRoot,MSTP_ROOT_ID,"%x:%x:%x:%x:%x:%x",cistPortPtr->designatedPriority.rgnRootID.mac_address[0],
+             snprintf(regionalRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistPortPtr->designatedPriority.rgnRootID.mac_address[0],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[1],cistPortPtr->designatedPriority.rgnRootID.mac_address[2],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[3],cistPortPtr->designatedPriority.rgnRootID.mac_address[4],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[5]);
@@ -5817,7 +5817,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
       mstp_updateMstiRootHistory(mstid, mstiRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID,
                         mstiRootPriVec.rgnRootID, FALSE, mstid);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%x:%x:%x:%x:%x:%x",mstiRootPriVec.rgnRootID.mac_address[0],
+      snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",mstiRootPriVec.rgnRootID.mac_address[0],
                 mstiRootPriVec.rgnRootID.mac_address[1],mstiRootPriVec.rgnRootID.mac_address[2],
                 mstiRootPriVec.rgnRootID.mac_address[3],mstiRootPriVec.rgnRootID.mac_address[4],
                 mstiRootPriVec.rgnRootID.mac_address[5]);
@@ -5945,7 +5945,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
           *------------------------------------------------------------------*/
          mstiPortPtr->designatedPriority = MSTP_MSTI_ROOT_PRIORITY(mstid);
          char designatedRoot[MSTP_ROOT_ID] = {0};
-         snprintf(designatedRoot,MSTP_ROOT_ID,"%d:%d:%d:%d:%d:%d",mstiPortPtr->designatedPriority.rgnRootID.mac_address[0],
+         snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",mstiPortPtr->designatedPriority.rgnRootID.mac_address[0],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[1],mstiPortPtr->designatedPriority.rgnRootID.mac_address[2],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[3],mstiPortPtr->designatedPriority.rgnRootID.mac_address[4],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[5]);
@@ -5959,7 +5959,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
          mstiPortPtr->designatedPriority.dsnBridgeID =
                                             MSTP_MSTI_BRIDGE_IDENTIFIER(mstid);
          char designatedBridge[MSTP_ROOT_ID] = {0};
-         snprintf(designatedBridge,MSTP_ROOT_ID,"%d:%d:%d:%d:%d:%d",mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
+         snprintf(designatedBridge,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[1],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[3],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
