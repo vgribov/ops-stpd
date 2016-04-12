@@ -179,7 +179,7 @@ mstpd_event_free(mstpd_message *pmsg)
 void *
 mstpd_rx_pdu_thread(void *data)
 {
-    VLOG_INFO("MSTP RX thread");
+    VLOG_DBG("MSTP RX thread");
     /* Detach thread to avoid memory leak upon exit. */
     pthread_detach(pthread_self());
 
@@ -204,7 +204,7 @@ mstpd_rx_pdu_thread(void *data)
             VLOG_ERR("epoll_wait returned error %s", strerror(errno));
             break;
         } else {
-            VLOG_INFO("epoll_wait returned, nfds=%d", nfds);
+            VLOG_DBG("epoll_wait returned, nfds=%d", nfds);
         }
 
         for (n = 0; n < nfds; n++) {
@@ -221,7 +221,7 @@ mstpd_rx_pdu_thread(void *data)
                 VLOG_ERR("Interface data missing for epoll event!");
                 continue;
             } else {
-                VLOG_INFO("epoll event #%d: events flags=0x%x, port=%d, sock=%d",n, events[n].events, idp->lport_id, idp->pdu_sockfd);
+                VLOG_DBG("epoll event #%d: events flags=0x%x, port=%d, sock=%d",n, events[n].events, idp->lport_id, idp->pdu_sockfd);
             }
             if (idp->pdu_registered == false) {
                 /* Most likely just a race condition. */
@@ -253,7 +253,7 @@ mstpd_rx_pdu_thread(void *data)
                 continue;
 
             } else if (count <= MAX_MSTP_BPDU_PKT_SIZE) {
-                VLOG_INFO("MSTP BPDU Send Event, count = %d ",count);
+                VLOG_DBG("MSTP BPDU Send Event, count = %d ",count);
                 pkt_event->pktLen = count;
                 pkt_event->lport = idp->lport_id;
                 print_payload(pkt_event->data);
@@ -329,7 +329,7 @@ register_stp_mcast_addr(int lport)
 
     rc = epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &event);
     if (rc == 0) {
-        VLOG_INFO("Registered sockfd %d with epoll loop.",
+        VLOG_DBG("Registered sockfd %d with epoll loop.",
                  sockfd);
     } else {
         VLOG_ERR("Failed to register sockfd with epoll "
@@ -337,7 +337,7 @@ register_stp_mcast_addr(int lport)
         close(sockfd);
         return -1;
     }
-    VLOG_INFO("Registered Socket Successfully!!! : %s",idp->name);
+    VLOG_DBG("Registered Socket Successfully!!! : %s",idp->name);
 
     return sockfd;
 } /* register_stp_mcast_addr */
@@ -365,7 +365,7 @@ deregister_stp_mcast_addr(int lport)
 
     rc = epoll_ctl(epfd, EPOLL_CTL_DEL, idp->pdu_sockfd, NULL);
     if (rc == 0) {
-        VLOG_INFO("Deregistered sockfd %d with epoll loop.",
+        VLOG_DBG("Deregistered sockfd %d with epoll loop.",
                  idp->pdu_sockfd);
     } else {
         VLOG_ERR("Failed to deregister sockfd with epoll "
@@ -385,7 +385,7 @@ deregister_stp_mcast_addr(int lport)
 void *
 mstpd_protocol_thread(void *arg)
 {
-    VLOG_INFO("MSTP Protocol thread");
+    VLOG_DBG("MSTP Protocol thread");
     mstpd_message *pmsg;
     mstp_lport_state_change *state;
     mstp_lport_add *l2port_add;
@@ -402,7 +402,7 @@ mstpd_protocol_thread(void *arg)
     clear_port_map(&l2ports);
     mstpInitialInit();
 
-    VLOG_INFO("%s : waiting for events in the main loop", __FUNCTION__);
+    VLOG_DBG("%s : waiting for events in the main loop", __FUNCTION__);
 
     /*******************************************************************
      * The main receive loop.
@@ -422,57 +422,57 @@ mstpd_protocol_thread(void *arg)
         }
         if (pmsg->msg_type == e_mstpd_global_config) {
             update_mstp_global_config(pmsg);
-            VLOG_INFO("Received a Global Config Update");
+            VLOG_DBG("Received a Global Config Update");
             continue;
         }
         if (pmsg->msg_type == e_mstpd_cist_config) {
             update_mstp_cist_config(pmsg);
-            VLOG_INFO("Received a CIST config Update");
+            VLOG_DBG("Received a CIST config Update");
             continue;
         }
         if (pmsg->msg_type == e_mstpd_cist_port_config) {
             update_mstp_cist_port_config(pmsg);
-            VLOG_INFO("Received a CIST Port config Update");
+            VLOG_DBG("Received a CIST Port config Update");
             continue;
         }
         if (pmsg->msg_type == e_mstpd_msti_config) {
             update_mstp_msti_config(pmsg);
-            VLOG_INFO("Received a MSTI config Update");
+            VLOG_DBG("Received a MSTI config Update");
             continue;
         }
         if (pmsg->msg_type == e_mstpd_msti_port_config) {
             update_mstp_msti_port_config(pmsg);
-            VLOG_INFO("Received a MSTI Port config Update");
+            VLOG_DBG("Received a MSTI Port config Update");
             continue;
         }
         if (pmsg->msg_type == e_mstpd_msti_config_delete) {
             delete_mstp_msti_config(pmsg);
-            VLOG_INFO("Received a MSTI config Update");
+            VLOG_DBG("Received a MSTI config Update");
             continue;
         }
 
         if(pmsg->msg_type == e_mstpd_vlan_add) {
-            VLOG_INFO("%s: Received VLAN Add Event", __FUNCTION__);
+            VLOG_DBG("%s: Received VLAN Add Event", __FUNCTION__);
             uint32_t vlan = 0;
             vlan_add = (mstp_vlan_add *)pmsg->msg;
             vlan = vlan_add->vid;
-            VLOG_INFO("Received an VLAN Add event: %d",vlan);
+            VLOG_DBG("Received an VLAN Add event: %d",vlan);
             handle_vlan_add_in_mstp_config(vlan);
             continue;
         }
 
         if(pmsg->msg_type == e_mstpd_vlan_delete) {
-            VLOG_INFO("%s: Received VLAN Delete Event", __FUNCTION__);
+            VLOG_DBG("%s: Received VLAN Delete Event", __FUNCTION__);
             uint32_t vlan = 0;
             vlan_delete = (mstp_vlan_delete *)pmsg->msg;
             vlan = vlan_delete->vid;
-            VLOG_INFO("Received an VLAN Delete event: %d",vlan);
+            VLOG_DBG("Received an VLAN Delete event: %d",vlan);
             handle_vlan_delete_in_mstp_config(vlan);
             continue;
         }
 
         if(pmsg->msg_type == e_mstpd_lport_add) {
-            VLOG_INFO("%s : Recieved lport add event", __FUNCTION__);
+            VLOG_DBG("%s : Recieved lport add event", __FUNCTION__);
             uint32_t lport = 0;
             l2port_add = (mstp_lport_add *)pmsg->msg;
             lport = l2port_add->lportindex;
@@ -490,12 +490,12 @@ mstpd_protocol_thread(void *arg)
             continue;
         }
         if(pmsg->msg_type == e_mstpd_lport_delete) {
-            VLOG_INFO("%s : Recieved lport delete event", __FUNCTION__);
+            VLOG_DBG("%s : Recieved lport delete event", __FUNCTION__);
             uint32_t lport = 0;
             char port[20] = {0};
             l2port_delete = (mstp_lport_delete *)pmsg->msg;
             lport = l2port_delete->lportindex;
-            VLOG_INFO("Received an l2port delete event : %d",lport);
+            VLOG_DBG("Received an l2port delete event : %d",lport);
             clear_port(&l2ports,lport);
             intf_get_port_name(lport,port);
             update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_delete);
@@ -570,7 +570,7 @@ mstpd_protocol_thread(void *arg)
 
             }
         } else if (pmsg->msg_type == e_mstpd_admin_status) {
-            VLOG_INFO("%s : Admin Status Update", __FUNCTION__);
+            VLOG_DBG("%s : Admin Status Update", __FUNCTION__);
             status = (mstp_admin_status *)pmsg->msg;
             if (status->status == true)
             {
@@ -604,20 +604,20 @@ mstpd_protocol_thread(void *arg)
             {
                 mstp_processTimerTickEvent();
             }
-            VLOG_INFO("%s : Recieved one sec timer tick event", __FUNCTION__);
+            VLOG_DBG("%s : Recieved one sec timer tick event", __FUNCTION__);
 
         } else if (pmsg->msg_type == e_mstpd_rx_bpdu) {
             pkt = (MSTP_RX_PDU *)pmsg->msg;
             /***********************************************************
              * Packet has arrived through interface socket.
              ************************************************************/
-            VLOG_INFO("%s : MSTP BPDU Packet arrived from interface socket",
+            VLOG_DBG("%s : MSTP BPDU Packet arrived from interface socket",
                    __FUNCTION__);
             if(mstp_enable)
             {
                 MSTP_PKT_TYPE_t pktType;
                 pktType = mstp_decodeBpdu(pkt);
-                VLOG_INFO("%d : MSTP BPDU Packet arrived from interface socket", pktType);
+                VLOG_DBG("%d : MSTP BPDU Packet arrived from interface socket", pktType);
                 switch (pktType) {
                     case MSTP_UNAUTHORIZED_BPDU_DATA_PKT:
                         mstp_processUnauthorizedBpdu(pkt, BPDU_PROTECTION);
@@ -715,7 +715,7 @@ print_payload(unsigned char *payload)
                 ethhead[6],ethhead[7],ethhead[8],
                 ethhead[9],ethhead[10],ethhead[11]);
     }
-    VLOG_INFO("Packet Format : %s",log);
+    VLOG_DBG("Packet Format : %s",log);
     return;
 }
 
@@ -783,7 +783,7 @@ mstp_processTimerTickEvent()
             {
                enable_or_disable_port(lport, true);
                intf_get_port_name(lport,lport_name);
-               VLOG_INFO("port %s - BPDU protection auto-reenable timer expired.",lport_name);
+               VLOG_DBG("port %s - BPDU protection auto-reenable timer expired.",lport_name);
             }
          }
       }
@@ -905,7 +905,7 @@ void update_mstp_global_config(mstpd_message *pmsg)
     {
         Spanning = FALSE;
     }
-    VLOG_INFO("Config Change in GLOBAL: %d", MSTP_DYN_RECONFIG_CHANGE);
+    VLOG_DBG("Config Change in GLOBAL: %d", MSTP_DYN_RECONFIG_CHANGE);
 }
 /**PROC+**********************************************************************
  * Name:      update_mstp_cist_config
@@ -1096,7 +1096,7 @@ void update_mstp_cist_config(mstpd_message *pmsg)
             }
         }
     }
-    VLOG_INFO("Config Change in CIST Data : %d",MSTP_DYN_RECONFIG_CHANGE);
+    VLOG_DBG("Config Change in CIST Data : %d",MSTP_DYN_RECONFIG_CHANGE);
 }
 
 /**PROC+**********************************************************************
@@ -1124,7 +1124,7 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
         MSTP_CIST_PORT_INFO_t *cistPortPtr = NULL;
         uint32_t path_cost = 0;
         lport = cist_port_config->port;
-        VLOG_INFO("Protocol Thread: Lport for Cist port : %d",lport);
+        VLOG_DBG("Protocol Thread: Lport for Cist port : %d",lport);
         if(!MSTP_COMM_PORT_PTR(lport))
         {
             /*------------------------------------------------------------------
@@ -1164,7 +1164,7 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
             }
         }
         MSTP_COMM_PORT_SET_BIT(commPortPtr->bitMap, MSTP_PORT_MCHECK);
-        VLOG_INFO("PATH cost : %d",path_cost);
+        VLOG_DBG("PATH cost : %d",path_cost);
         bool curValue = MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
                 MSTP_PORT_ADMIN_EDGE_PORT) ? TRUE : FALSE;
 
