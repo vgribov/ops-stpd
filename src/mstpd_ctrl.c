@@ -467,7 +467,7 @@ mstpd_protocol_thread(void *arg)
             vlan_delete = (mstp_vlan_delete *)pmsg->msg;
             vlan = vlan_delete->vid;
             VLOG_DBG("Received an VLAN Delete event: %d",vlan);
-            handle_vlan_delete_in_mstp_config(vlan);
+            //handle_vlan_delete_in_mstp_config(vlan);
             continue;
         }
 
@@ -1635,26 +1635,47 @@ mstp_informDBOnPortStateChange(uint32_t operation)
    MSTP_TREE_MSG_t *m_next;
    bool            remove_msg = FALSE;
    bool           isblk_msg = FALSE, isfwd_msg = FALSE;
+   struct ovsdb_idl_txn *txn = NULL;
+   const struct ovsrec_port *port_row = NULL;
+   struct smap smap_other_config;
+   MSTP_OVSDB_LOCK;
+   txn = ovsdb_idl_txn_create(idl);
 
    m_next = (MSTP_TREE_MSG_t*) qfirst_nodis (&MSTP_TREE_MSGS_QUEUE);
    while(m_next != (MSTP_TREE_MSG_t*) Q_NULL)
    {
       m = m_next;
       m_next = (MSTP_TREE_MSG_t*)qnext_nodis(&MSTP_TREE_MSGS_QUEUE, &m->link);
-#if 0
        /*---------------------------------------------------------------------
       * propagate 'lport down' requests to DB
        *---------------------------------------------------------------------*/
       if(are_any_ports_set(&m->portsDwn))
       {
+         int lport = 0;
+         for(lport = find_first_port_set(&m->portsDwn);IS_VALID_LPORT(lport);
+                  lport = find_next_port_set(&m->portsDwn, lport))
+          {
+             char port[20] = {0};
+              intf_get_port_name(lport,port);
+              OVSREC_PORT_FOR_EACH(port_row,idl)
+                {
+                    if(strcmp(port_row->name,port)==0)
+                    {
+                        smap_clone(&smap_other_config, &port_row->hw_config);
+                        smap_replace(&smap_other_config, BLOCK_ALL_MSTP, "true");
+                        ovsrec_port_set_hw_config(port_row, &smap_other_config);
+                        smap_destroy(&smap_other_config);
+                    }
+                }
+          }
          clear_port_map(&m->portsDwn);
       }
-#endif /*0*/
       /*---------------------------------------------------------------------
        * propagate 'block' request to DB
        *---------------------------------------------------------------------*/
       if(are_any_ports_set(&m->portsBlk))
       {
+          VLOG_DBG("MSTP_DBG blocking ports on informDB");
           isblk_msg = TRUE;
           int lport = 0;
           for(lport = find_first_port_set(&m->portsBlk);IS_VALID_LPORT(lport);
@@ -1677,6 +1698,7 @@ mstp_informDBOnPortStateChange(uint32_t operation)
        *---------------------------------------------------------------------*/
       if(are_any_ports_set(&m->portsLrn))
       {
+          VLOG_DBG("MSTP_DBG Learning ports on informDB");
           int lport = 0;
           for(lport = find_first_port_set(&m->portsLrn);IS_VALID_LPORT(lport);
                   lport = find_next_port_set(&m->portsLrn, lport))
@@ -1699,6 +1721,7 @@ mstp_informDBOnPortStateChange(uint32_t operation)
        *---------------------------------------------------------------------*/
       if(are_any_ports_set(&m->portsFwd))
       {
+         VLOG_DBG("MSTP_DBG Forwarding ports on informDB");
          isfwd_msg = TRUE;
           int lport = 0;
           for(lport = find_first_port_set(&m->portsFwd);IS_VALID_LPORT(lport);
@@ -1726,14 +1749,29 @@ mstp_informDBOnPortStateChange(uint32_t operation)
               }
           }
       }
-#if 0
-      /*---------------------------------------------------------------------
-       * propagate 'lport up' requests to DB
-       *---------------------------------------------------------------------*/
       if(are_any_ports_set(&m->portsUp))
       {
-         clear_port_map(&m->portsUp);
+          int lport = 0;
+          for(lport = find_first_port_set(&m->portsUp);IS_VALID_LPORT(lport);
+                  lport = find_next_port_set(&m->portsUp, lport))
+          {
+              char port[20] = {0};
+              intf_get_port_name(lport,port);
+              OVSREC_PORT_FOR_EACH(port_row,idl)
+              {
+                  if(strcmp(port_row->name,port)==0)
+                  {
+                      smap_clone(&smap_other_config, &port_row->hw_config);
+                      smap_replace(&smap_other_config, BLOCK_ALL_MSTP, "false");
+                      ovsrec_port_set_hw_config(port_row, &smap_other_config);
+                      smap_destroy(&smap_other_config);
+                  }
+              }
+          }
+          clear_port_map(&m->portsUp);
       }
+
+#if 0
       if(are_any_ports_set(&m->portsClearEdge))
       {
          mstp_updatePortSecurity(&m->portsClearEdge,FALSE);
@@ -1786,6 +1824,9 @@ mstp_informDBOnPortStateChange(uint32_t operation)
          free(m);
       }
    }
+   ovsdb_idl_txn_commit_block(txn);
+   ovsdb_idl_txn_destroy(txn);
+   MSTP_OVSDB_UNLOCK;
 }
 /**PROC+**********************************************************************
  * Name:      update_mstp_on_lport_add

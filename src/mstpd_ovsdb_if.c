@@ -63,17 +63,6 @@ VLOG_DEFINE_THIS_MODULE(mstpd_ovsdb_if);
  * interface threads calls to update OVSDB states. */
 pthread_mutex_t ovsdb_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/* Macros to lock and unlock mutexes in a verbose manner. */
-#define MSTP_OVSDB_LOCK { \
-                VLOG_DBG("%s(%d): MSTP_OVSDB_LOCK: taking lock...", __FUNCTION__, __LINE__); \
-                pthread_mutex_lock(&ovsdb_mutex); \
-}
-
-#define MSTP_OVSDB_UNLOCK { \
-                VLOG_DBG("%s(%d): MSTP_OVSDB_UNLOCK: releasing lock...", __FUNCTION__, __LINE__); \
-                pthread_mutex_unlock(&ovsdb_mutex); \
-}
-
 /* Scale OVS interface speed number (bps) down to
  *  * that used by MSTP state machine (Mbps). */
 #define MEGA_BITS_PER_SEC  1000000
@@ -314,12 +303,6 @@ find_iface_data_by_name(char *name)
     return NULL;
 }
 
-void
-mstpd_debug_dump(struct ds *ds, int argc, const char *argv[])
-{
-
-    //TBD
-}
 
 /* Create a connection to the OVSDB at db_path and create a dB cache
  * for this daemon. */
@@ -362,12 +345,14 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_table(idl, &ovsrec_table_bridge);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_other_config);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_ports);
+    ovsdb_idl_add_column(idl, &ovsrec_bridge_col_status);
 
     ovsdb_idl_add_table(idl, &ovsrec_table_port);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_name);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_tag);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_vlan_mode);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_admin);
+    ovsdb_idl_add_column(idl, &ovsrec_port_col_hw_config);
 
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_instances);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_common_instance);
@@ -755,7 +740,7 @@ send_interface_add_msg(struct iface_data *info_ptr)
 static void
 send_vlan_add_msg(uint32_t vid)
 {
-    VLOG_INFO("VLAN add send event : %d", vid);
+    VLOG_DBG("VLAN add send event : %d", vid);
     int msgSize = 0;
     mstpd_message *msg;
     mstp_vlan_add *event;
@@ -787,7 +772,7 @@ send_vlan_add_msg(uint32_t vid)
 static void
 send_vlan_delete_msg(uint32_t vid)
 {
-    VLOG_INFO("VLAN delete send event : %d", vid);
+    VLOG_DBG("VLAN delete send event : %d", vid);
     int msgSize = 0;
     mstpd_message *msg;
     mstp_vlan_delete *event;
@@ -818,7 +803,7 @@ send_vlan_delete_msg(uint32_t vid)
 static void
 send_l2port_add_msg(uint32_t lport)
 {
-    VLOG_INFO("L2port add send event : %d", lport);
+    VLOG_DBG("L2port add send event : %d", lport);
     int msgSize = 0;
     mstpd_message *msg;
     mstp_lport_add *event;
@@ -849,7 +834,7 @@ send_l2port_add_msg(uint32_t lport)
 static void
 send_l2port_delete_msg(uint32_t lport)
 {
-    VLOG_INFO("L2port delete send event : %d", lport);
+    VLOG_DBG("L2port delete send event : %d", lport);
     int msgSize = 0;
     mstpd_message *msg;
     mstp_lport_delete *event;
@@ -881,7 +866,7 @@ send_l2port_delete_msg(uint32_t lport)
 static void
 send_admin_status_change_msg(bool status)
 {
-    VLOG_INFO("MSTP Admin status Change");
+    VLOG_DBG("MSTP_DBG Admin status Change");
     int msgSize = 0;
     mstpd_message *msg;
     mstp_admin_status *event;
@@ -954,7 +939,7 @@ add_new_interface(const struct ovsrec_interface *ifrow)
             VLOG_ERR("Invalid interface index=%d", idp->lport_id);
         }
         else {
-            VLOG_INFO("New Interface LPORT INDEX : %d",idp->lport_id);
+            VLOG_DBG("New Interface LPORT INDEX : %d",idp->lport_id);
         }
 
         idp->duplex = HALF_DUPLEX;
@@ -963,8 +948,6 @@ add_new_interface(const struct ovsrec_interface *ifrow)
                 idp->duplex = FULL_DUPLEX;
             }
         }
-        VLOG_INFO("Safe till here!!");
-
         idp->link_speed = 0;
         if (ifrow->n_link_speed > 0) {
             /* There should only be one speed. */
@@ -978,7 +961,7 @@ add_new_interface(const struct ovsrec_interface *ifrow)
             }
         }
         idp_lookup[idp->lport_id] = idp;
-        VLOG_INFO("Created local data for interface %s", ifrow->name);
+        VLOG_DBG("Created local data for interface %s", ifrow->name);
     }
 } /* add_new_interface */
 
@@ -1032,7 +1015,7 @@ static int
 update_interface_cache(void)
 {
 
-    VLOG_INFO("Update Interface cache");
+    VLOG_DBG("Update Interface cache");
     struct shash sh_idl_interfaces;
     const struct ovsrec_interface *ifrow;
     struct shash_node *sh_node, *sh_next;
@@ -1041,7 +1024,7 @@ update_interface_cache(void)
     shash_init(&sh_idl_interfaces);
     OVSREC_INTERFACE_FOR_EACH(ifrow, idl) {
         if (!shash_add_once(&sh_idl_interfaces, ifrow->name, ifrow)) {
-            VLOG_INFO("interface %s specified twice", ifrow->name);
+            VLOG_DBG("interface %s specified twice", ifrow->name);
         }
     }
 
@@ -1050,7 +1033,7 @@ update_interface_cache(void)
         struct iface_data *idp =
             shash_find_data(&sh_idl_interfaces, sh_node->name);
         if (!idp) {
-            VLOG_INFO("Found a deleted interface %s", sh_node->name);
+            VLOG_DBG("Found a deleted interface %s", sh_node->name);
             del_old_interface(sh_node);
         }
     }
@@ -1060,7 +1043,7 @@ update_interface_cache(void)
         struct iface_data *idp =
             shash_find_data(&all_interfaces, sh_node->name);
         if (!idp) {
-            VLOG_INFO("Found an added interface %s", sh_node->name);
+            VLOG_DBG("Found an added interface %s", sh_node->name);
             add_new_interface(sh_node->data);
             rc++;
         }
@@ -1084,7 +1067,7 @@ update_interface_cache(void)
 
             if ((new_link_state != idp->link_state)) {
                 idp->link_state = new_link_state;
-                VLOG_INFO("Interface %s link state changed in DB: "
+                VLOG_DBG("Interface %s link state changed in DB: "
                          " new_link=%s ",
                          ifrow->name,
                          (idp->link_state == INTERFACE_LINK_STATE_UP ? "up" : "down"));
@@ -1112,7 +1095,7 @@ update_interface_cache(void)
 
 static int update_l2port_cache(void)
 {
-    VLOG_INFO("Update L2 Port Cache");
+    VLOG_DBG("Update L2 Port Cache");
     const struct ovsrec_bridge *bridge_row = NULL;
     struct iface_data *idp = NULL;
     PORT_MAP temp_ports;
@@ -1122,7 +1105,7 @@ static int update_l2port_cache(void)
     if(n_l2ports != bridge_row->n_ports)
     {
         clear_port_map(&temp_ports);
-        VLOG_INFO("Update L2 Port Cache : NO of ports changed");
+        VLOG_DBG("Update L2 Port Cache : NO of ports changed");
         for (i=0; i < bridge_row->n_ports ; i++)
         {
             idp = find_iface_data_by_name(bridge_row->ports[i]->name);
@@ -1131,10 +1114,10 @@ static int update_l2port_cache(void)
                 set_port(&temp_ports,idp->lport_id);
             }
         }
-        VLOG_INFO("Update L2 Port Cache : new ports set");
+        VLOG_DBG("Update L2 Port Cache : new ports set");
         if (!are_portmaps_equal(&l2ports,&temp_ports))
         {
-            VLOG_INFO("Update L2 Port Cache : Change in port map");
+            VLOG_DBG("Update L2 Port Cache : Change in port map");
             PORT_MAP addPortMap;
             PORT_MAP delPortMap;
 
@@ -1154,7 +1137,7 @@ static int update_l2port_cache(void)
 
             if(are_any_ports_set(&delPortMap))
             {
-                VLOG_INFO("Update L2 Port Cache : Removal of ports");
+                VLOG_DBG("Update L2 Port Cache : Removal of ports");
                 uint16_t lport = 0;
                 for(lport = find_first_port_set(&delPortMap);
                         lport <= MAX_LPORTS;
@@ -1176,7 +1159,7 @@ static int update_l2port_cache(void)
             }
             if(are_any_ports_set(&addPortMap))
             {
-                VLOG_INFO("Update L2 Port Cache : Addition of ports");
+                VLOG_DBG("Update L2 Port Cache : Addition of ports");
                 uint16_t lport = 0;
                 for(lport = find_first_port_set(&addPortMap);
                         lport <= MAX_LPORTS;
@@ -1207,7 +1190,7 @@ static int update_l2port_cache(void)
 static void
 add_new_vlan(struct shash_node *sh_node)
 {
-    VLOG_INFO("Add VLAN Cache");
+    VLOG_DBG("Add VLAN Cache");
     struct vlan_data *new_vlan = NULL;
     const struct ovsrec_vlan *vlan_row = sh_node->data;
 
@@ -1218,7 +1201,7 @@ add_new_vlan(struct shash_node *sh_node)
         VLOG_WARN("VLAN %d specified twice", (int)vlan_row->id);
         free(new_vlan);
     } else {
-        VLOG_INFO("Add VLAN Cache should send an update");
+        VLOG_DBG("Add VLAN Cache should send an update");
 
         new_vlan->vlan_id = vlan_row->id;
         new_vlan->name = xstrdup(vlan_row->name);
@@ -1243,7 +1226,7 @@ static void
 del_old_vlan(struct shash_node *sh_node)
 {
     if (sh_node) {
-        VLOG_INFO("Delete VLAN Cache should send an update");
+        VLOG_DBG("Delete VLAN Cache should send an update");
         struct vlan_data *vl = sh_node->data;
         send_vlan_delete_msg(vl->vlan_id);
         free(vl->name);
@@ -1267,7 +1250,7 @@ del_old_vlan(struct shash_node *sh_node)
 static int
 update_vlan_cache(void)
 {
-    VLOG_INFO("Update VLAN Cache");
+    VLOG_DBG("Update VLAN Cache");
     struct vlan_data *new_vlan;
     struct shash sh_idl_vlans;
     const struct ovsrec_vlan *row;
@@ -1278,7 +1261,7 @@ update_vlan_cache(void)
     shash_init(&sh_idl_vlans);
     OVSREC_VLAN_FOR_EACH(row, idl) {
         if (!shash_add_once(&sh_idl_vlans, row->name, row)) {
-            VLOG_INFO("VLAN %s (%d) specified twice", row->name, (int)row->id);
+            VLOG_DBG("VLAN %s (%d) specified twice", row->name, (int)row->id);
         }
     }
 
@@ -1286,7 +1269,7 @@ update_vlan_cache(void)
     SHASH_FOR_EACH_SAFE(sh_node, sh_next, &all_vlans) {
         new_vlan = shash_find_data(&sh_idl_vlans, sh_node->name);
         if (!new_vlan) {
-            VLOG_INFO("Found a deleted VLAN %s", sh_node->name);
+            VLOG_DBG("Found a deleted VLAN %s", sh_node->name);
             del_old_vlan(sh_node);
         }
     }
@@ -1295,7 +1278,7 @@ update_vlan_cache(void)
     SHASH_FOR_EACH(sh_node, &sh_idl_vlans) {
         new_vlan = shash_find_data(&all_vlans, sh_node->name);
         if (!new_vlan) {
-            VLOG_INFO("Found an added VLAN %s", sh_node->name);
+            VLOG_DBG("Found an added VLAN %s", sh_node->name);
             add_new_vlan(sh_node);
         }
     }
@@ -1432,7 +1415,7 @@ static void
 mstpd_exit(void)
 {
     mstpd_ovsdb_exit();
-    VLOG_INFO("mstpd OVSDB thread exiting...");
+    VLOG_DBG("mstpd OVSDB thread exiting...");
 } /* mstpd_exit */
 
 /**
@@ -1627,11 +1610,11 @@ int mstp_global_config_update(void) {
     {
         send_mstp_global_config_update(&mstp_global_conf);
     }
-    VLOG_INFO("MSTP Admin status Change: reconfigure : mstp_global_conf.admin_status : %d , *bridge_row->mstp_enable : %d",
+    VLOG_DBG("MSTP Admin status Change: reconfigure : mstp_global_conf.admin_status : %d , *bridge_row->mstp_enable : %d",
                mstp_global_conf.admin_status, *bridge_row->mstp_enable);
     if (mstp_global_conf.admin_status != *bridge_row->mstp_enable) {
         mstp_global_conf.admin_status = *bridge_row->mstp_enable;
-        VLOG_INFO("MSTP Admin status Change: reconfigure 1");
+        VLOG_DBG("MSTP Admin status Change: reconfigure 1");
         send_admin_status_change_msg(mstp_global_conf.admin_status);
     }
     return 1;
@@ -1657,7 +1640,7 @@ int mstp_cist_config_update(void) {
     cist_row = ovsrec_mstp_common_instance_first(idl);
     if (!cist_row)
     {
-        VLOG_INFO("MSTP CIST doesnot exist");
+        VLOG_DBG("MSTP CIST doesnot exist");
         return 0;
     }
     if (n_cist_vlans != cist_row->n_vlans)
@@ -1733,7 +1716,7 @@ int mstp_cist_port_config_update(void) {
                 return 0;
             }
             lport = idp->lport_id;
-            VLOG_INFO("cist port config update : %d",lport);
+            VLOG_DBG("cist port config update : %d",lport);
             if(!cist_port_lookup[lport])
             {
                 struct mstp_cist_port_config *cist_port = NULL;
@@ -1918,7 +1901,7 @@ int mstp_msti_update_config(void)
     }
     if(!areBitmapsEqual(&mstp_instance_map.map[0],&msti_map.map[0],MSTP_INSTANCES_MAX))
     {
-        VLOG_INFO("Update MSTI Cache : Change in MSTI MAP");
+        VLOG_DBG("Update MSTI Cache : Change in MSTI MAP");
         MSTI_MAP addMstiMap;
         MSTI_MAP delMstiMap;
 
@@ -1938,7 +1921,7 @@ int mstp_msti_update_config(void)
 
         if(areAnyBitsSetInBitmap(&delMstiMap.map[0],MSTP_INSTANCES_MAX))
         {
-            VLOG_INFO("Update MSTP MSTI Cache : Removal of Instances");
+            VLOG_DBG("Update MSTP MSTI Cache : Removal of Instances");
             uint16_t mstid = 0;
             for(mstid = findFirstBitSet(&delMstiMap.map[0],MSTP_INSTANCES_MAX);
                     mstid <= MSTP_INSTANCES_MAX;
@@ -2182,7 +2165,6 @@ util_add_default_ports_to_cist() {
     struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
-    struct ovsrec_vlan **vlans = NULL;
     int64_t i = 0,j = 0;
 
     int64_t cist_hello_time = DEF_HELLO_TIME;
@@ -2251,24 +2233,9 @@ util_add_default_ports_to_cist() {
         ovsrec_mstp_common_instance_port_set_restricted_port_tcn_disable( cist_port_row, &restricted_port_tcn_disable, 1);
         cist_port_info[j++] = cist_port_row;
     }
-
     ovsrec_mstp_common_instance_set_mstp_common_instance_ports (cist_row,
-            cist_port_info, bridge_row->n_ports-1);
-
-    vlans = xcalloc(bridge_row->n_vlans, sizeof *bridge_row->vlans);
-    if (!vlans) {
-        ovsdb_idl_txn_destroy(txn);
-        free(cist_port_info);
-        return;
-    }
-
-    for (i = 0; i < bridge_row->n_vlans; i++) {
-        vlans[i] = bridge_row->vlans[i];
-    }
-    ovsrec_mstp_common_instance_set_vlans(cist_row, vlans, bridge_row->n_vlans);
-
+                cist_port_info, bridge_row->n_ports-1);
     free(cist_port_info);
-    free(vlans);
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
 }
@@ -2287,6 +2254,7 @@ void
 util_mstp_set_defaults() {
 
     const struct ovsrec_bridge *bridge_row = NULL;
+    struct ovsrec_vlan **vlans = NULL;
     struct smap smap = SMAP_INITIALIZER(&smap);
     struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
@@ -2300,6 +2268,7 @@ util_mstp_set_defaults() {
     const int64_t max_hops = DEF_MAX_HOPS;
     const int64_t tx_hold_cnt = DEF_HOLD_COUNT;
     bool mstp_status = DEF_ADMIN_STATUS;
+    int i = 0;
 
     txn = ovsdb_idl_txn_create(idl);
 
@@ -2336,6 +2305,15 @@ util_mstp_set_defaults() {
 
         /* Crate a CIST instance */
         cist_row = ovsrec_mstp_common_instance_insert(txn);
+        vlans = xcalloc(bridge_row->n_vlans, sizeof *bridge_row->vlans);
+        if (!vlans) {
+            ovsdb_idl_txn_destroy(txn);
+            return;
+        }
+        for (i = 0; i < bridge_row->n_vlans; i++) {
+            vlans[i] = bridge_row->vlans[i];
+        }
+        ovsrec_mstp_common_instance_set_vlans(cist_row, vlans, bridge_row->n_vlans);
 
         /* updating the default values to the CIST table */
         ovsrec_mstp_common_instance_set_hello_time(cist_row, &hello_time, 1);
@@ -2358,6 +2336,11 @@ util_mstp_set_defaults() {
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
+    if (!vlans)
+    {
+        free(vlans);
+    }
+    return;
 }
 /**PROC+***********************************************************
  * Name:    mstp_util_set_cist_port_table_bool
@@ -2373,11 +2356,7 @@ util_mstp_set_defaults() {
 void
 mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
         const bool value) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
-
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         if (strcmp(cist_port_row->port->name, if_name) == 0) {
@@ -2386,8 +2365,6 @@ mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
     }
 
     if (!cist_port_row) {
-        ovsdb_idl_txn_destroy(txn);
-        MSTP_OVSDB_UNLOCK;
         return;
     }
 
@@ -2395,10 +2372,6 @@ mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
         ovsrec_mstp_common_instance_port_set_oper_edge_port(
                 cist_port_row, &value, 1);
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+***********************************************************
@@ -2414,15 +2387,10 @@ mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
 
 void
 mstp_util_set_cist_table_value (const char *key, int64_t value) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
-        ovsdb_idl_txn_destroy(txn);
-        MSTP_OVSDB_UNLOCK;
         return;
     }
 
@@ -2462,10 +2430,6 @@ mstp_util_set_cist_table_value (const char *key, int64_t value) {
     else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
         ovsrec_mstp_common_instance_set_topology_change_count(cist_row, &value, 1);
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+***********************************************************
@@ -2480,15 +2444,10 @@ mstp_util_set_cist_table_value (const char *key, int64_t value) {
  **PROC-*****************************************************************/
 void
 mstp_util_set_cist_table_string (const char *key, const char *string) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
-        ovsdb_idl_txn_destroy(txn);
-        MSTP_OVSDB_UNLOCK;
         return;
     }
     if (strcmp(key, DESIGNATED_ROOT) == 0) {
@@ -2500,11 +2459,6 @@ mstp_util_set_cist_table_string (const char *key, const char *string) {
     else if (strcmp(key, ROOT_PORT) == 0) {
         ovsrec_mstp_common_instance_set_root_port(cist_row, string);
     }
-
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
  * Name:    mstp_util_set_cist_port_table_value
@@ -2519,11 +2473,7 @@ mstp_util_set_cist_table_string (const char *key, const char *string) {
 void
 mstp_util_set_cist_port_table_value (const char *if_name, const char *key,
         int64_t value) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
-
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         if (strcmp(cist_port_row->port->name, if_name) == 0) {
@@ -2532,8 +2482,6 @@ mstp_util_set_cist_port_table_value (const char *if_name, const char *key,
     }
 
     if (!cist_port_row) {
-        ovsdb_idl_txn_destroy(txn);
-        MSTP_OVSDB_UNLOCK;
         return;
     }
 
@@ -2549,10 +2497,6 @@ mstp_util_set_cist_port_table_value (const char *if_name, const char *key,
     else if (strcmp(key, PORT_HELLO_TIME) == 0) {
         ovsrec_mstp_common_instance_port_set_port_hello_time(cist_port_row, &value, 1);
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
  * Name:    mstp_util_set_cist_port_table_string
@@ -2567,11 +2511,7 @@ mstp_util_set_cist_port_table_value (const char *if_name, const char *key,
 void
 mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
         char *string) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
-
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         if (strcmp(cist_port_row->port->name, if_name) == 0) {
@@ -2580,8 +2520,6 @@ mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
     }
 
     if (!cist_port_row) {
-         ovsdb_idl_txn_destroy(txn);
-         MSTP_OVSDB_UNLOCK;
          return;
     }
 
@@ -2612,10 +2550,6 @@ mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
         ovsrec_mstp_common_instance_port_set_flush_macaddress(cist_port_row, &value, 1);
 #endif /*0*/
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+***********************************************************
@@ -2631,12 +2565,9 @@ mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
 
 void
 mstp_util_set_msti_table_string (const char *key, const char *string, int mstid) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     int  i = 0;
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -2648,8 +2579,6 @@ mstp_util_set_msti_table_string (const char *key, const char *string, int mstid)
     }
 
     if (!msti_row) {
-         ovsdb_idl_txn_destroy(txn);
-         MSTP_OVSDB_UNLOCK;
          return;
     }
     if (strcmp(key, DESIGNATED_ROOT) == 0) {
@@ -2665,11 +2594,6 @@ mstp_util_set_msti_table_string (const char *key, const char *string, int mstid)
         bool value = (strcmp(string,"enable") == 0)?TRUE:FALSE;
         ovsrec_mstp_instance_set_topology_unstable(msti_row, &value, 1);
     }
-
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
  * Name:    mstp_util_set_msti_table_value
@@ -2684,12 +2608,9 @@ mstp_util_set_msti_table_string (const char *key, const char *string, int mstid)
 
 void
 mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     int  i = 0;
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -2701,8 +2622,6 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
     }
 
     if (!msti_row) {
-         ovsdb_idl_txn_destroy(txn);
-         MSTP_OVSDB_UNLOCK;
          return;
     }
     if (strcmp(key, ROOT_PATH_COST) == 0) {
@@ -2717,10 +2636,6 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
     else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
         ovsrec_mstp_instance_set_topology_change_count(msti_row, &value, 1);
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+***********************************************************
@@ -2735,14 +2650,11 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
  **PROC-*****************************************************************/
 void
 mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, int lport) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_mstp_instance_port *msti_port_row = NULL;
     struct iface_data *idp = NULL;
     int  i = 0, j = 0;
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -2754,8 +2666,6 @@ mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, 
                 idp = find_iface_data_by_name(msti_row->mstp_instance_ports[j]->port->name);
                 if(!idp)
                 {
-                    ovsdb_idl_txn_destroy(txn);
-                    MSTP_OVSDB_UNLOCK;
                     return;
                 }
                 if(lport == idp->lport_id) {
@@ -2767,8 +2677,6 @@ mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, 
     }
 
     if (!msti_port_row) {
-         ovsdb_idl_txn_destroy(txn);
-         MSTP_OVSDB_UNLOCK;
          return;
     }
     if (strcmp(key, DESIGNATED_ROOT_PRIORITY) == 0) {
@@ -2780,10 +2688,6 @@ mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, 
     else if (strcmp(key, DESIGNATED_BRIDGE_PRIORITY) == 0) {
         ovsrec_mstp_instance_port_set_designated_bridge_priority(msti_port_row, &value, 1);
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
  * Name:    mstp_util_set_msti_port_table_string
@@ -2797,14 +2701,11 @@ mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, 
  **PROC-*****************************************************************/
 void
 mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, int lport) {
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_mstp_instance_port *msti_port_row = NULL;
     struct iface_data *idp = NULL;
     int  i = 0, j = 0;
-    MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -2816,8 +2717,6 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
                 idp = find_iface_data_by_name(msti_row->mstp_instance_ports[j]->port->name);
                 if(!idp)
                 {
-                    ovsdb_idl_txn_destroy(txn);
-                    MSTP_OVSDB_UNLOCK;
                     return;
                 }
                 if(lport == idp->lport_id) {
@@ -2829,8 +2728,6 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
     }
 
     if (!msti_port_row) {
-         ovsdb_idl_txn_destroy(txn);
-         MSTP_OVSDB_UNLOCK;
          return;
     }
     if (strcmp(key, PORT_ROLE) == 0) {
@@ -2854,10 +2751,6 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
         ovsrec_mstp_instance_port_set_flush_macaddress(msti_port_row, &value, 1);
 #endif /*0*/
     }
-    /* End of transaction. */
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-    MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
  * Name:    mstp_convertPortRoleEnumToString
@@ -2872,22 +2765,22 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
 void mstp_convertPortRoleEnumToString(MSTP_PORT_ROLE_t role,char *string)
 {
     if(role == MSTP_PORT_ROLE_ROOT) {
-        strcpy(string, MSTP_ROLE_ROOT);
+        strcpy(string,MSTP_ROLE_ROOT);
     }
     else if (role == MSTP_PORT_ROLE_ALTERNATE) {
-        strcpy(string, MSTP_ROLE_ALTERNATE);
+        strcpy(string,MSTP_ROLE_ALTERNATE);
     }
     else if (role == MSTP_PORT_ROLE_DESIGNATED) {
-        strcpy(string, MSTP_ROLE_DESIGNATE);
+        strcpy(string,MSTP_ROLE_DESIGNATE);
     }
     else if (role == MSTP_PORT_ROLE_BACKUP) {
-        strcpy(string, MSTP_ROLE_BACKUP);
+        strcpy(string,MSTP_ROLE_BACKUP);
     }
     else if (role == MSTP_PORT_ROLE_DISABLED) {
-        strcpy(string, MSTP_ROLE_DISABLE);
+        strcpy(string,MSTP_ROLE_DISABLE);
     }
     else if (role == MSTP_PORT_ROLE_MASTER) {
-        strcpy(string, MSTP_ROLE_MASTER);
+        strcpy(string,MSTP_ROLE_MASTER);
     }
 }
 
@@ -2939,10 +2832,13 @@ void handle_vlan_add_in_mstp_config(int vlan)
         vlans[cist_row->n_vlans] = (struct ovsrec_vlan *)vlan_row;
         ovsrec_mstp_common_instance_set_vlans(cist_row, vlans,
                 cist_row->n_vlans + 1);
-        free(vlans);
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
+    if (!vlans)
+    {
+        free(vlans);
+    }
     MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
@@ -2964,12 +2860,12 @@ void handle_vlan_delete_in_mstp_config(int vlan)
     struct ovsrec_vlan **vlans = NULL;
     int i = 0,j = 0;
     MSTP_OVSDB_LOCK;
-    txn = ovsdb_idl_txn_create(idl);
     cist_row = ovsrec_mstp_common_instance_first(idl);
     if(cist_row) {
         /* Push the complete vlan list to MSTP Common instance table
          * including the new vlan*/
         if (cist_row->n_vlans) {
+            txn = ovsdb_idl_txn_create(idl);
             vlans =
                 xcalloc(cist_row->n_vlans - 1, sizeof *cist_row->vlans);
             if (!vlans) {
@@ -2983,6 +2879,8 @@ void handle_vlan_delete_in_mstp_config(int vlan)
             }
             ovsrec_mstp_common_instance_set_vlans(cist_row, vlans,
                     cist_row->n_vlans - 1);
+            ovsdb_idl_txn_commit_block(txn);
+            ovsdb_idl_txn_destroy(txn);
             free(vlans);
         }
     }
@@ -2991,6 +2889,7 @@ void handle_vlan_delete_in_mstp_config(int vlan)
             /* Push the complete vlan list to MSTP instance table
              * including the new vlan*/
             if (msti_row->n_vlans) {
+                txn = ovsdb_idl_txn_create(idl);
                 vlans =
                     xcalloc(msti_row->n_vlans - 1, sizeof *msti_row->vlans);
                 if (!vlans) {
@@ -3004,13 +2903,13 @@ void handle_vlan_delete_in_mstp_config(int vlan)
                 }
                 ovsrec_mstp_instance_set_vlans(msti_row, vlans,
                         msti_row->n_vlans - 1);
+                ovsdb_idl_txn_commit_block(txn);
+                ovsdb_idl_txn_destroy(txn);
                 free(vlans);
             }
         }
 
     }
-    ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
     MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************
@@ -3187,9 +3086,15 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             }
             if (strcmp(msti_row->mstp_instance_ports[i]->port->name,name) == 0)
             {
-                msti_port_row = msti_row->mstp_instance_ports[i];
+                msti_port_row = msti_row->mstp_instance_ports[j];
                 break;
             }
+        }
+        if ((operation == e_mstpd_lport_add) && msti_port_row)
+        {
+            ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+            return;
         }
         if ((operation == e_mstpd_lport_add) && !msti_port_row)
         {
@@ -3223,7 +3128,6 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
                 xcalloc((msti_row->n_mstp_instance_ports + 1),
                         sizeof *msti_row->mstp_instance_ports);
             if(!msti_port_info) {
-                ovsdb_idl_txn_commit_block(txn);
                 ovsdb_idl_txn_destroy(txn);
                 MSTP_OVSDB_UNLOCK;
                 return;
@@ -3235,6 +3139,7 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             msti_port_info[msti_row->n_mstp_instance_ports] = msti_port_add;
             ovsrec_mstp_instance_set_mstp_instance_ports (msti_row,
                     msti_port_info, msti_row->n_mstp_instance_ports+1 );
+            free(msti_port_info);
         }
         else if (operation == e_mstpd_lport_delete)
         {
@@ -3248,8 +3153,9 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
                 xcalloc((msti_row->n_mstp_instance_ports - 1),
                         sizeof *msti_row->mstp_instance_ports);
             if(!msti_port_info) {
-                ovsdb_idl_txn_commit_block(txn);
                 ovsdb_idl_txn_destroy(txn);
+                MSTP_OVSDB_UNLOCK;
+                return;
             }
 
             for (k = 0,j =0; k < msti_row->n_mstp_instance_ports; k++) {
@@ -3260,12 +3166,11 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             }
             ovsrec_mstp_instance_set_mstp_instance_ports (msti_row,
                     msti_port_info, msti_row->n_mstp_instance_ports - 1);
-
+            free(msti_port_info);
         }
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
-    free(msti_port_info);
     MSTP_OVSDB_UNLOCK;
 }
 /**PROC+***********************************************************

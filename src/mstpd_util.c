@@ -1453,13 +1453,22 @@ void
 mstp_buildMstConfigurationDigest(uint8_t *resDigest)
 {
    uint8_t   digest[MSTP_DIGEST_SIZE]; /* 16 bytes */
+   char     digest_str[200] = {0};
+   char temp[10]= {0};
    MSTID_t *mstCfgTable;
    VID_t    vid;
    MSTID_t  mstid;
    int      mstCfgTableSize;
+   uint32_t i = 0;
+   const struct ovsrec_bridge *bridge_row = NULL;
+   struct ovsdb_idl_txn *txn = NULL;
+   struct smap smap = SMAP_INITIALIZER(&smap);
    STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(resDigest);
    STP_ASSERT(MSTP_DIGEST_SIZE == 16);
+   MSTP_OVSDB_LOCK;
+   txn = ovsdb_idl_txn_create(idl);
+   bridge_row = ovsrec_bridge_first(idl);
 
    /*------------------------------------------------------------------------
     * allocate buffer big enough to accomodate MST Configuration Table.
@@ -1469,6 +1478,8 @@ mstp_buildMstConfigurationDigest(uint8_t *resDigest)
    mstCfgTable = (MSTID_t *) calloc(1, mstCfgTableSize);
    if (!mstCfgTable)
    {
+       ovsdb_idl_txn_destroy(txn);
+       MSTP_OVSDB_UNLOCK;
        STP_ASSERT(0);
        return;
    }
@@ -1497,6 +1508,15 @@ mstp_buildMstConfigurationDigest(uint8_t *resDigest)
    memset(digest, 0, sizeof(digest));
    hmac_md5((unsigned char*) mstCfgTable, mstCfgTableSize,
                  (uint8_t*)mstp_DigestSignatureKey, MSTP_DIGEST_KEY_LEN, digest);
+   for(i=0; i< MSTP_DIGEST_SIZE; i++)
+   {
+      snprintf(temp,10,"%.2X",digest[i]);
+      strncat(digest_str,temp,10);
+   }
+   smap_clone(&smap, &bridge_row->status);
+   smap_replace(&smap, "mstp_config_digest" , digest_str);
+   ovsrec_bridge_set_status(bridge_row, &smap);
+   VLOG_DBG("Config Digest : %s",digest_str);
 
    /*------------------------------------------------------------------------
     * copy result
@@ -1507,6 +1527,10 @@ mstp_buildMstConfigurationDigest(uint8_t *resDigest)
     * free memory used
     *------------------------------------------------------------------------*/
    free(mstCfgTable);
+   ovsdb_idl_txn_commit_block(txn);
+   ovsdb_idl_txn_destroy(txn);
+   smap_destroy(&smap);
+   MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+**********************************************************************
@@ -1994,7 +2018,9 @@ void
 mstp_newTcWhile(MSTID_t mstid, LPORT_t lport)
 {
    uint16_t tcWhileVal = 0;
-
+   struct ovsdb_idl_txn *txn = NULL;
+   MSTP_OVSDB_LOCK;
+   txn = ovsdb_idl_txn_create(idl);
    STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(IS_VALID_LPORT(lport));
    STP_ASSERT((mstid == MSTP_CISTID) || MSTP_VALID_MSTID(mstid));
@@ -2072,6 +2098,9 @@ mstp_newTcWhile(MSTID_t mstid, LPORT_t lport)
          mstp_util_set_msti_table_value(TIME_SINCE_TOP_CHANGE,MSTP_MSTI_INFO(mstid)->timeSinceTopologyChange,mstid);
       }
    }
+   ovsdb_idl_txn_commit_block(txn);
+   ovsdb_idl_txn_destroy(txn);
+   MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+**********************************************************************
@@ -3444,7 +3473,10 @@ mstp_recordPriority(MSTID_t mstid,  LPORT_t lport)
 void
 mstp_recordTimes(MSTID_t mstid,  LPORT_t lport)
 {
-   STP_ASSERT(IS_VALID_LPORT(lport));
+    struct ovsdb_idl_txn *txn = NULL;
+    MSTP_OVSDB_LOCK;
+    txn = ovsdb_idl_txn_create(idl);
+    STP_ASSERT(IS_VALID_LPORT(lport));
    STP_ASSERT(mstid == MSTP_CISTID || MSTP_VALID_MSTID(mstid));
 
    if(mstid == MSTP_CISTID)
@@ -3494,6 +3526,9 @@ mstp_recordTimes(MSTID_t mstid,  LPORT_t lport)
       STP_ASSERT(mstiPortPtr);
       mstiPortPtr->portTimes.hops = mstiPortPtr->msgTimes.hops;
    }
+   ovsdb_idl_txn_commit_block(txn);
+   ovsdb_idl_txn_destroy(txn);
+   MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+**********************************************************************
@@ -4221,7 +4256,7 @@ mstp_txTcn(LPORT_t lport)
                idp->name, rc);
        STP_ASSERT(FALSE);
    }
-   VLOG_INFO("If it is here!! Packet is OUT successfully!!!");
+   VLOG_DBG("If it is here!! Packet is OUT successfully!!!");
 
 
 }
@@ -4302,7 +4337,7 @@ mstp_txConfig(LPORT_t lport)
 
    /* get the mac address for the port */
    my_mac = intf_get_mac_addr(lport);
-   VLOG_INFO("MSTP Util : 5 : mac : %s", my_mac);
+   VLOG_DBG("MSTP Util : 5 : mac : %s", my_mac);
    sscanf(my_mac,"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]);
    MAC_ADDR_COPY(&mac, bpdu->lsapHdr.src);
 
@@ -4389,7 +4424,7 @@ mstp_txConfig(LPORT_t lport)
                idp->name, rc);
        STP_ASSERT(FALSE);
    }
-   VLOG_INFO("If it is here!! Packet is OUT successfully!!!");
+   VLOG_DBG("If it is here!! Packet is OUT successfully!!!");
 
 }
 
@@ -4505,7 +4540,7 @@ mstp_txMstp(LPORT_t lport)
 
    /* get the mac address for the port */
    my_mac = intf_get_mac_addr(lport);
-   VLOG_INFO("MSTP Util : 5 : mac : %s", my_mac);
+   VLOG_DBG("MSTP Util : 5 : mac : %s", my_mac);
    sscanf(my_mac,"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]);
    MAC_ADDR_COPY(&mac, bpdu->lsapHdr.src);
 
@@ -4634,7 +4669,7 @@ mstp_txMstp(LPORT_t lport)
    /*------------------------------------------------------------------------
     * check the state of Force Protocol Version parameter
     *------------------------------------------------------------------------*/
-   if(mstp_Bridge.ForceVersion < 3)
+   if(mstp_Bridge.ForceVersion < MSTP_PROTOCOL_VERSION_ID_MST)
    {/* If the value of the Force Protocol Version parameter is less than 3,
      * no further parameters are encoded in the BPDU and the protocol version
      * parameter is set to 2 (denoting an RST BPDU) */
@@ -4907,9 +4942,7 @@ mstp_txMstp(LPORT_t lport)
                idp->name, rc);
        STP_ASSERT(FALSE);
    }
-   VLOG_INFO("If it is here!! Packet is OUT successfully!!!");
-
-
+   VLOG_DBG("If it is here!! Packet is OUT successfully!!!");
 
 }
 
@@ -5088,13 +5121,18 @@ mstp_updtRcvdInfoWhile(MSTID_t mstid, LPORT_t lport)
 void
 mstp_updtRolesTree(MSTID_t mstid)
 {
+   struct ovsdb_idl_txn *txn = NULL;
    STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(mstid == MSTP_CISTID || MSTP_VALID_MSTID(mstid));
-
+   MSTP_OVSDB_LOCK;
+   txn = ovsdb_idl_txn_create(idl);
    if(mstid == MSTP_CISTID)
       mstp_updtRolesCist();
    else
       mstp_updtRolesMsti(mstid);
+   ovsdb_idl_txn_commit_block(txn);
+   ovsdb_idl_txn_destroy(txn);
+   MSTP_OVSDB_UNLOCK;
 }
 
 /**PROC+**********************************************************************
@@ -5130,7 +5168,6 @@ mstp_updtRolesCist(void)
    uint16_t                       rootHelloTime = 0;
    char                           oldRootPortName[PORTNAME_LEN];
    char                           newRootPortName[PORTNAME_LEN];
-
    hadNonZeroCistEPC = (MSTP_CIST_ROOT_PRIORITY.extRootPathCost == 0);
 
    /*------------------------------------------------------------------------
@@ -5278,7 +5315,7 @@ mstp_updtRolesCist(void)
       mstp_updateCstRootHistory(cistRootPriVec.rootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rootID,
                         cistRootPriVec.rootID,TRUE,MSTP_CISTID);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistRootPriVec.rootID.mac_address[0],
+      snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rootID.mac_address[0],
                 cistRootPriVec.rootID.mac_address[1],cistRootPriVec.rootID.mac_address[2],
                 cistRootPriVec.rootID.mac_address[3],cistRootPriVec.rootID.mac_address[4],
                 cistRootPriVec.rootID.mac_address[5]);
@@ -5296,7 +5333,7 @@ mstp_updtRolesCist(void)
       mstp_updateIstRootHistory(cistRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rgnRootID,
                         cistRootPriVec.rgnRootID,FALSE,MSTP_CISTID);
-      snprintf(regionalRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistRootPriVec.rgnRootID.mac_address[0],
+      snprintf(regionalRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rgnRootID.mac_address[0],
                 cistRootPriVec.rgnRootID.mac_address[1],cistRootPriVec.rgnRootID.mac_address[2],
                 cistRootPriVec.rgnRootID.mac_address[3],cistRootPriVec.rgnRootID.mac_address[4],
                 cistRootPriVec.rgnRootID.mac_address[5]);
@@ -5434,7 +5471,7 @@ mstp_updtRolesCist(void)
           *------------------------------------------------------------------*/
          char designatedRoot[MSTP_ROOT_ID] = {0};
          cistPortPtr->designatedPriority = MSTP_CIST_ROOT_PRIORITY;
-         snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistPortPtr->designatedPriority.rootID.mac_address[0],
+         snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.rootID.mac_address[0],
                  cistPortPtr->designatedPriority.rootID.mac_address[1],cistPortPtr->designatedPriority.rootID.mac_address[2],
                  cistPortPtr->designatedPriority.rootID.mac_address[3],cistPortPtr->designatedPriority.rootID.mac_address[4],
                  cistPortPtr->designatedPriority.rootID.mac_address[5]);
@@ -5446,7 +5483,7 @@ mstp_updtRolesCist(void)
          char designatedBridge[MSTP_ROOT_ID] = {0};
          cistPortPtr->designatedPriority.dsnBridgeID =
              MSTP_CIST_BRIDGE_IDENTIFIER;
-         snprintf(designatedBridge,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
+         snprintf(designatedBridge,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[1],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[3],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
@@ -5463,7 +5500,7 @@ mstp_updtRolesCist(void)
              char regionalRoot[MSTP_ROOT_ID] = {0};
              cistPortPtr->designatedPriority.rgnRootID =
                  MSTP_CIST_BRIDGE_IDENTIFIER;
-             snprintf(regionalRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",cistPortPtr->designatedPriority.rgnRootID.mac_address[0],
+             snprintf(regionalRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.rgnRootID.mac_address[0],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[1],cistPortPtr->designatedPriority.rgnRootID.mac_address[2],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[3],cistPortPtr->designatedPriority.rgnRootID.mac_address[4],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[5]);
@@ -5653,7 +5690,7 @@ mstp_updtRolesCist(void)
                 mstp_updatePortHistory(MSTP_CISTID, lport, selectedRole);
                 intf_get_port_name(lport,port);
                 mstp_convertPortRoleEnumToString(selectedRole,port_role);
-                mstp_util_set_cist_port_table_string(PORT_ROLE,port_role,port);
+                mstp_util_set_cist_port_table_string(port,PORT_ROLE,port_role);
                 /* Does this generate Topology change if so record the
                    current and prev port roles */
                 if (mstpCheckForTcGeneration(MSTP_CISTID, lport,
@@ -5817,7 +5854,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
       mstp_updateMstiRootHistory(mstid, mstiRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID,
                         mstiRootPriVec.rgnRootID, FALSE, mstid);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",mstiRootPriVec.rgnRootID.mac_address[0],
+      snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",mstiRootPriVec.rgnRootID.mac_address[0],
                 mstiRootPriVec.rgnRootID.mac_address[1],mstiRootPriVec.rgnRootID.mac_address[2],
                 mstiRootPriVec.rgnRootID.mac_address[3],mstiRootPriVec.rgnRootID.mac_address[4],
                 mstiRootPriVec.rgnRootID.mac_address[5]);
@@ -5945,7 +5982,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
           *------------------------------------------------------------------*/
          mstiPortPtr->designatedPriority = MSTP_MSTI_ROOT_PRIORITY(mstid);
          char designatedRoot[MSTP_ROOT_ID] = {0};
-         snprintf(designatedRoot,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",mstiPortPtr->designatedPriority.rgnRootID.mac_address[0],
+         snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",mstiPortPtr->designatedPriority.rgnRootID.mac_address[0],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[1],mstiPortPtr->designatedPriority.rgnRootID.mac_address[2],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[3],mstiPortPtr->designatedPriority.rgnRootID.mac_address[4],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[5]);
@@ -5959,7 +5996,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
          mstiPortPtr->designatedPriority.dsnBridgeID =
                                             MSTP_MSTI_BRIDGE_IDENTIFIER(mstid);
          char designatedBridge[MSTP_ROOT_ID] = {0};
-         snprintf(designatedBridge,MSTP_ROOT_ID,"%2x:%2x:%2x:%2x:%2x:%2x",mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
+         snprintf(designatedBridge,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[1],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[3],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);

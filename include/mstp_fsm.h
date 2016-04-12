@@ -143,16 +143,16 @@ typedef struct {
        uint32_t vmap[VLAN_MAP_ARRAY_SIZE];
 } VLAN_MAP;
 
-extern bool insqti_nodis(QUEUE_HEAD *head, QUEUE_THREAD *newItem);
-extern QUEUE_THREAD *qfirst_nodis(const QUEUE_HEAD *head);
-extern QUEUE_THREAD *qnext_nodis(const QUEUE_HEAD *head, const QUEUE_THREAD *currentItem);
-extern bool remqhere_nodis(QUEUE_HEAD *head, QUEUE_THREAD *currentItem);
-extern bool qempty(const QUEUE_HEAD *head);
-extern QUEUE_THREAD *qfirst(const QUEUE_HEAD *head);
-extern QUEUE_THREAD *remqhi(QUEUE_HEAD *head);
-extern QUEUE_THREAD *remqhi_nodis(QUEUE_HEAD *head);
-extern void inique(QUEUE_HEAD *head);
-extern void inique_nodis(QUEUE_HEAD *head);
+bool insqti_nodis(QUEUE_HEAD *head, QUEUE_THREAD *newItem);
+QUEUE_THREAD *qfirst_nodis(const QUEUE_HEAD *head);
+QUEUE_THREAD *qnext_nodis(const QUEUE_HEAD *head, const QUEUE_THREAD *currentItem);
+bool remqhere_nodis(QUEUE_HEAD *head, QUEUE_THREAD *currentItem);
+bool qempty(const QUEUE_HEAD *head);
+QUEUE_THREAD *qfirst(const QUEUE_HEAD *head);
+QUEUE_THREAD *remqhi(QUEUE_HEAD *head);
+QUEUE_THREAD *remqhi_nodis(QUEUE_HEAD *head);
+void inique(QUEUE_HEAD *head);
+void inique_nodis(QUEUE_HEAD *head);
 
 #define MSTP_MAX_CONFIG_NAME_LEN    32
 #define DEF_ADMIN_STATUS            false
@@ -168,7 +168,7 @@ extern void inique_nodis(QUEUE_HEAD *head);
 #define DEF_MSTP_PORT_PRIORITY      8
 #define DEF_MSTP_COST               20000
 #define DEF_LINK_TYPE               "point_to_point"
-
+#define BLOCK_ALL_MSTP              "block_all_mstp"
 
 /*********** MSTP_CONFIG OF BRIDGE TABLE **************************/
 #define MSTP_STATE_BLOCK           "Blocking"
@@ -357,7 +357,7 @@ typedef struct ENET_HDR
 /*---------------------------------------------------------------------------
  * Operation Codes used by Multiple Instance Spanning Tree Protocol
  *---------------------------------------------------------------------------*/
-extern MAC_ADDRESS stp_multicast;
+MAC_ADDRESS stp_multicast;
 
 /*---------------------------------------------------------------------------
  * Maximum length of the MST Region Name
@@ -644,7 +644,7 @@ typedef struct mstpInstCntrs {
     time_t mstiMsgRxCntLastUpdated;
 } mstpInstCntrs_t;
 
-extern uint32_t
+uint32_t
 mstp_getMstiPortDbgAllCntInfo(uint16_t mstid, LPORT_t lport,
         mstpCntrs_t *mCnt, mstpInstCntrs_t *mInstCnt);
 
@@ -658,7 +658,7 @@ mstp_getMstiPortDbgAllCntInfo(uint16_t mstid, LPORT_t lport,
  *   * (0 -> 802.1d STP, 2 -> 802.1w RSTP, 3 -> 802.1s MSTP)
  *    * Variable is defined in 'rstp_init.c'
  *     *---------------------------------------------------------------------------*/
-extern uint8_t Stp_version;
+uint8_t Stp_version;
 
 /*---------------------------------------------------------------------------
  *  * Functions prototypes
@@ -667,84 +667,84 @@ extern uint8_t Stp_version;
 /*
  *  * mstp_init.c
  *   */
-extern void mstpInitialInit();
+void mstpInitialInit();
 /*
  *  * mstp_dyn_reconfig.c
  *   */
-extern void mstp_adminStatusUpdate(int status);
-extern void mstp_addLport(LPORT_t lport);
-extern void mstp_removeLport(LPORT_t lport);
-extern bool mstp_isp2pEnable(LPORT_t lport);
+void mstp_adminStatusUpdate(int status);
+void mstp_addLport(LPORT_t lport);
+void mstp_removeLport(LPORT_t lport);
+bool mstp_isp2pEnable(LPORT_t lport);
 /*
  *  * mstp_util.c
  *   */
 
-extern void     mstp_semTake();
-extern void     mstp_semGive();
-extern uint32_t mstp_convertLportSpeedToPathCost(SPEED_DPLX* speedDplx);
-extern uint32_t mstp_rootChangesCounter(uint16_t mstid,
+void     mstp_semTake();
+void     mstp_semGive();
+uint32_t mstp_convertLportSpeedToPathCost(SPEED_DPLX* speedDplx);
+uint32_t mstp_rootChangesCounter(uint16_t mstid,
         MSTP_TREE_TYPE_t treeType);
-extern void     mstp_rootBridgeId(uint16_t mstid, MSTP_TREE_TYPE_t treeType,
+void     mstp_rootBridgeId(uint16_t mstid, MSTP_TREE_TYPE_t treeType,
         MAC_ADDRESS mac_addr, uint16_t *priority);
-extern bool     mstp_validRootHistoryEntry(uint16_t mstid,
+bool     mstp_validRootHistoryEntry(uint16_t mstid,
         MSTP_TREE_TYPE_t treeType,
         uint32_t idx);
-extern bool     mstp_portMstRgnBoundary(LPORT_t lport);
-extern uint32_t mstp_portExternalRootPathCost(LPORT_t lport);
-extern uint32_t mstp_portMstBpduTxCnt(LPORT_t lport);
-extern uint32_t mstp_portMstBpduRxCnt(LPORT_t lport);
-extern uint32_t mstp_portCfgBpduTxCnt(LPORT_t lport);
-extern uint32_t mstp_portCfgBpduRxCnt(LPORT_t lport);
-extern uint32_t mstp_portTcnBpduTxCnt(LPORT_t lport);
-extern uint32_t mstp_portTcnBpduRxCnt(LPORT_t lport);
-extern uint32_t mstp_portTcAckFlagTxCnt(LPORT_t lport);
-extern uint32_t mstp_portTcAckFlagRxCnt(LPORT_t lport);
-extern uint32_t mstp_portLoopBackBpduCnt(LPORT_t lport);
-extern uint32_t mstp_portAgedBpduCnt(LPORT_t lport);
-extern void     mstp_mstiPortRgnRootBridgeId(uint16_t mstid, LPORT_t lport,
+bool     mstp_portMstRgnBoundary(LPORT_t lport);
+uint32_t mstp_portExternalRootPathCost(LPORT_t lport);
+uint32_t mstp_portMstBpduTxCnt(LPORT_t lport);
+uint32_t mstp_portMstBpduRxCnt(LPORT_t lport);
+uint32_t mstp_portCfgBpduTxCnt(LPORT_t lport);
+uint32_t mstp_portCfgBpduRxCnt(LPORT_t lport);
+uint32_t mstp_portTcnBpduTxCnt(LPORT_t lport);
+uint32_t mstp_portTcnBpduRxCnt(LPORT_t lport);
+uint32_t mstp_portTcAckFlagTxCnt(LPORT_t lport);
+uint32_t mstp_portTcAckFlagRxCnt(LPORT_t lport);
+uint32_t mstp_portLoopBackBpduCnt(LPORT_t lport);
+uint32_t mstp_portAgedBpduCnt(LPORT_t lport);
+void     mstp_mstiPortRgnRootBridgeId(uint16_t mstid, LPORT_t lport,
         MAC_ADDRESS mac_addr,
         uint16_t *priority);
-extern uint32_t mstp_mstiPortInternalRootPathCost(uint16_t mstid, LPORT_t lport);
-extern void     mstp_mstiPortDsnBridgeId(uint16_t mstid, LPORT_t lport,
+uint32_t mstp_mstiPortInternalRootPathCost(uint16_t mstid, LPORT_t lport);
+void     mstp_mstiPortDsnBridgeId(uint16_t mstid, LPORT_t lport,
         MAC_ADDRESS mac_addr,
         uint16_t *priority);
-extern uint16_t mstp_mstiPortDsnPortId(uint16_t mstid, LPORT_t lport);
-extern uint32_t mstp_mstiPortTcDetectCnt(uint16_t mstid, LPORT_t lport);
-extern uint32_t mstp_mstiPortTcFlagTxCnt(uint16_t mstid, LPORT_t lport);
-extern uint32_t mstp_mstiPortTcFlagRxCnt(uint16_t mstid, LPORT_t lport);
-extern uint32_t mstp_mstiPortExceededHopsBpduCnt(uint16_t mstid, LPORT_t lport);
-extern bool     mstp_isLportFwdOnVlan(LPORT_t lport, VID_t vlan);
-extern bool     mstp_isPortInBpduError(LPORT_t lport);
-extern bool     mstp_get_bridge_oper_edge(LPORT_t lport);
-extern uint32_t mstp_errantBpduCounter_get(LPORT_t lport);
-extern int      mstp_countBpduFilters(void);
-extern bool     mstp_getRootHistoryEntry(uint16_t mstid,
+uint16_t mstp_mstiPortDsnPortId(uint16_t mstid, LPORT_t lport);
+uint32_t mstp_mstiPortTcDetectCnt(uint16_t mstid, LPORT_t lport);
+uint32_t mstp_mstiPortTcFlagTxCnt(uint16_t mstid, LPORT_t lport);
+uint32_t mstp_mstiPortTcFlagRxCnt(uint16_t mstid, LPORT_t lport);
+uint32_t mstp_mstiPortExceededHopsBpduCnt(uint16_t mstid, LPORT_t lport);
+bool     mstp_isLportFwdOnVlan(LPORT_t lport, VID_t vlan);
+bool     mstp_isPortInBpduError(LPORT_t lport);
+bool     mstp_get_bridge_oper_edge(LPORT_t lport);
+uint32_t mstp_errantBpduCounter_get(LPORT_t lport);
+int      mstp_countBpduFilters(void);
+bool     mstp_getRootHistoryEntry(uint16_t mstid,
         MSTP_TREE_TYPE_t treeType,
         uint32_t idx,
         MAC_ADDRESS mac_addr,
         uint16_t *priority,
         time_t *timeStamp);
-extern uint32_t mstp_getMstpBridgeDbgCntInfo(uint32_t cntType);
-extern uint32_t mstp_getMstiDbgCntInfo(uint16_t mstid, uint32_t cntType);
-extern uint32_t mstp_getMstiPortDbgCntInfo(uint16_t mstid, LPORT_t lport,
+uint32_t mstp_getMstpBridgeDbgCntInfo(uint32_t cntType);
+uint32_t mstp_getMstiDbgCntInfo(uint16_t mstid, uint32_t cntType);
+uint32_t mstp_getMstiPortDbgCntInfo(uint16_t mstid, LPORT_t lport,
         uint32_t idx, time_t *timeStamp);
-extern void     mstp_clrMstpBridgeDbgInfo(void);
-extern void     mstp_clrMstiDbgCntsInfo(uint16_t mstid);
-extern void     mstp_clrMstiPortDbgCntInfo(uint16_t mstid, LPORT_t lport);
-extern MSTP_DBG_CNT_SCOPE_t
+void     mstp_clrMstpBridgeDbgInfo(void);
+void     mstp_clrMstiDbgCntsInfo(uint16_t mstid);
+void     mstp_clrMstiPortDbgCntInfo(uint16_t mstid, LPORT_t lport);
+MSTP_DBG_CNT_SCOPE_t
 mstp_DbgCntScope(uint16_t mstid, uint32_t cntType);
-extern void     mstp_getMstiVidMap(uint16_t mstid, VID_MAP *vidMap);
-extern void     mstp_getMstiVidMapFromCfg(uint16_t mstid, VID_MAP *vidMap,
+void     mstp_getMstiVidMap(uint16_t mstid, VID_MAP *vidMap);
+void     mstp_getMstiVidMapFromCfg(uint16_t mstid, VID_MAP *vidMap,
         bool pending);
-extern uint16_t mstp_getMstIdForVid(VID_t vid);
-extern uint16_t mstp_getMstIdForVidFromCfg(VID_t vid, bool pending);
-extern void     mstp_printVidMap(VID_MAP *srcVidMap, uint16_t lineLen,
+uint16_t mstp_getMstIdForVid(VID_t vid);
+uint16_t mstp_getMstIdForVidFromCfg(VID_t vid, bool pending);
+void     mstp_printVidMap(VID_MAP *srcVidMap, uint16_t lineLen,
         uint16_t indent);
-extern VID_t    mstp_vidMapToVidStr(VID_MAP *srcVidMap, char *buf,
+VID_t    mstp_vidMapToVidStr(VID_MAP *srcVidMap, char *buf,
         uint16_t bufLen);
-extern void     mstp_convertVlanMstiMappingCfg(bool pending);
-extern void     mstp_setDynReconfigChangeFlag(void);
-extern bool isMstp64Instance(void);
+void     mstp_convertVlanMstiMappingCfg(bool pending);
+void     mstp_setDynReconfigChangeFlag(void);
+bool isMstp64Instance(void);
 
 
 /*****************************************************************************
@@ -1220,7 +1220,7 @@ extern bool isMstp64Instance(void);
 
 #ifdef MSTP_DEBUG
 
-extern char * date();
+char * date();
 #define MSTP_DEBUG_BUF_LEN 80
 #define MSTP_TX_BPDU_CNT   mstp_debugTxBpduCnt
 #define MSTP_RX_BPDU_CNT   mstp_debugRxBpduCnt
@@ -3231,79 +3231,79 @@ typedef struct MSTP_MSTI_MAP
 /*---------------------------------------------------------------------------
  * MSTP misc globals
  *---------------------------------------------------------------------------*/
-extern MSTP_CB_t         mstp_CB;
-extern MSTP_BRIDGE_INFO_t
+MSTP_CB_t         mstp_CB;
+MSTP_BRIDGE_INFO_t
                          mstp_Bridge;
-extern VID_MAP           mstp_MstiVidTable[MSTP_INSTANCES_MAX + 1];
-extern MSTID_t           mstp_vlanGroupNumToMstIdTable[MSTP_INSTANCES_MAX + 1];
-extern const uint8_t     mstp_DigestSignatureKey[MSTP_DIGEST_KEY_LEN];
+VID_MAP           mstp_MstiVidTable[MSTP_INSTANCES_MAX + 1];
+MSTID_t           mstp_vlanGroupNumToMstIdTable[MSTP_INSTANCES_MAX + 1];
+const uint8_t     mstp_DigestSignatureKey[MSTP_DIGEST_KEY_LEN];
 
-extern struct_handle_t     gMstpStructMem[MSTP_MAX_LOG_THROTTLE_CLIENT];
-extern hash_handle_t       gMstpThrottleHashTbl[MSTP_MAX_LOG_THROTTLE_CLIENT];
-extern throttle_handle_t   gMstpInfoThrottle[MSTP_MAX_LOG_THROTTLE_CLIENT];
+struct_handle_t     gMstpStructMem[MSTP_MAX_LOG_THROTTLE_CLIENT];
+hash_handle_t       gMstpThrottleHashTbl[MSTP_MAX_LOG_THROTTLE_CLIENT];
+throttle_handle_t   gMstpInfoThrottle[MSTP_MAX_LOG_THROTTLE_CLIENT];
 
 /*---------------------------------------------------------------------------
  * Global variable held the running STP implementation version
  * (0 -> 802.1d STP, 2 -> 802.1w RSTP, 3 -> 802.1Q MSTP)
  * Defined in 'rstp_init.c'
  *---------------------------------------------------------------------------*/
-extern uint8_t Stp_version;
+uint8_t Stp_version;
 
 /*---------------------------------------------------------------------------
  * Global variable that is used to indicate to external features that some
  * implementation version of STP protocol is running. Defined in 'stp_init.c'.
  *---------------------------------------------------------------------------*/
-extern uint8_t Spanning;
+uint8_t Spanning;
 
 /*---------------------------------------------------------------------------
  * Global variable used to indicate that the initialization of STP is
  * completed. Defined in 'stp_init.c'.
  *---------------------------------------------------------------------------*/
-extern bool   Stp_Initialized;
+bool   Stp_Initialized;
 
 
-extern char* const   MSTP_ADMIN_PPMAC_s[MSTP_ADMIN_PPMAC_MAX];
-extern char* const   MSTP_BPDU_TYPE_s[MSTP_BPDU_TYPE_MAX];
-extern char* const   MSTP_PORT_ROLE_s[MSTP_PORT_ROLE_MAX];
-extern char* const   MSTP_INFO_IS_s[MSTP_INFO_IS_MAX];
-extern char* const   MSTP_RCVD_INFO_s[MSTP_RCVD_INFO_MAX];
-extern char* const   MSTP_PTI_STATE_s[MSTP_PTI_STATE_MAX];
-extern char* const   MSTP_PTX_STATE_s[MSTP_PTX_STATE_MAX];
-extern char* const   MSTP_PRX_STATE_s[MSTP_PRX_STATE_MAX];
-extern char* const   MSTP_PPM_STATE_s[MSTP_PPM_STATE_MAX];
-extern char* const   MSTP_PIM_STATE_s[MSTP_PIM_STATE_MAX];
-extern char* const   MSTP_PRS_STATE_s[MSTP_PRS_STATE_MAX];
-extern char* const   MSTP_PRT_STATE_s[MSTP_PRT_STATE_MAX];
-extern char* const   MSTP_PST_STATE_s[MSTP_PST_STATE_MAX];
-extern char* const   MSTP_TCM_STATE_s[MSTP_TCM_STATE_MAX];
-extern char* const   MSTP_BDM_STATE_s[MSTP_BDM_STATE_MAX];
-extern char* const   MSTP_BRIDGE_DBG_CNT_NAME_s[MSTP_BRIDGE_DBG_CNT_TYPE_MAX];
+char* const   MSTP_ADMIN_PPMAC_s[MSTP_ADMIN_PPMAC_MAX];
+char* const   MSTP_BPDU_TYPE_s[MSTP_BPDU_TYPE_MAX];
+char* const   MSTP_PORT_ROLE_s[MSTP_PORT_ROLE_MAX];
+char* const   MSTP_INFO_IS_s[MSTP_INFO_IS_MAX];
+char* const   MSTP_RCVD_INFO_s[MSTP_RCVD_INFO_MAX];
+char* const   MSTP_PTI_STATE_s[MSTP_PTI_STATE_MAX];
+char* const   MSTP_PTX_STATE_s[MSTP_PTX_STATE_MAX];
+char* const   MSTP_PRX_STATE_s[MSTP_PRX_STATE_MAX];
+char* const   MSTP_PPM_STATE_s[MSTP_PPM_STATE_MAX];
+char* const   MSTP_PIM_STATE_s[MSTP_PIM_STATE_MAX];
+char* const   MSTP_PRS_STATE_s[MSTP_PRS_STATE_MAX];
+char* const   MSTP_PRT_STATE_s[MSTP_PRT_STATE_MAX];
+char* const   MSTP_PST_STATE_s[MSTP_PST_STATE_MAX];
+char* const   MSTP_TCM_STATE_s[MSTP_TCM_STATE_MAX];
+char* const   MSTP_BDM_STATE_s[MSTP_BDM_STATE_MAX];
+char* const   MSTP_BRIDGE_DBG_CNT_NAME_s[MSTP_BRIDGE_DBG_CNT_TYPE_MAX];
 
 
 #ifdef MSTP_DEBUG
 
-extern PORT_MAP                  mstp_debugPorts;
-extern MSTP_MSTI_MAP             mstp_debugMstis;
-extern bool                     mstp_debugCist;
-extern MSTP_SM_MAP               mstp_debugSMs;
-extern bool                     mstp_debugSmCallSm;
-extern bool                     mstp_debugTx;
-extern bool                     mstp_debugRx;
-extern bool                     mstp_debugBpduPrint;
-extern bool                     mstp_debugDynConfig;
-extern bool                     mstp_debugFlush;
-extern bool                     mstp_debugPortStatus;
-extern bool                     mstp_debugMisc;
-extern bool                     mstp_debugLog;
-extern uint32_t                  mstp_debugRxBpduCnt;
-extern uint32_t                  mstp_debugTxBpduCnt;
-extern char                      mstp_debugBuf[MSTP_DEBUG_BUF_LEN];
+PORT_MAP                  mstp_debugPorts;
+MSTP_MSTI_MAP             mstp_debugMstis;
+bool                     mstp_debugCist;
+MSTP_SM_MAP               mstp_debugSMs;
+bool                     mstp_debugSmCallSm;
+bool                     mstp_debugTx;
+bool                     mstp_debugRx;
+bool                     mstp_debugBpduPrint;
+bool                     mstp_debugDynConfig;
+bool                     mstp_debugFlush;
+bool                     mstp_debugPortStatus;
+bool                     mstp_debugMisc;
+bool                     mstp_debugLog;
+uint32_t                  mstp_debugRxBpduCnt;
+uint32_t                  mstp_debugTxBpduCnt;
+char                      mstp_debugBuf[MSTP_DEBUG_BUF_LEN];
 
-extern PORT_MAP                  mstp_debugPktEnabledPorts;
-extern MSTP_MSTI_MAP             mstp_debugPktEnabledInstances[MAX_LPORTS + 1];
-extern PORT_MAP                  mstp_debugPktEnabledForCist;
-extern MSTP_MSTI_MAP             mstp_debugEventInstances;
-extern bool                     mstp_debugEventCist;
+PORT_MAP                  mstp_debugPktEnabledPorts;
+MSTP_MSTI_MAP             mstp_debugPktEnabledInstances[MAX_LPORTS + 1];
+PORT_MAP                  mstp_debugPktEnabledForCist;
+MSTP_MSTI_MAP             mstp_debugEventInstances;
+bool                     mstp_debugEventCist;
 
 #endif /* MSTP_DEBUG */
 
@@ -3313,215 +3313,215 @@ extern bool                     mstp_debugEventCist;
 /*
  * mstp_init.c
  */
-extern void mstp_init(void);
-extern void mstp_initMstiVlanTables(void);
-extern void mstp_initStateMachines(void);
-extern void mstp_initProtocolData(bool init);
-extern MSTP_MSTI_PORT_INFO_t *
+void mstp_init(void);
+void mstp_initMstiVlanTables(void);
+void mstp_initStateMachines(void);
+void mstp_initProtocolData(bool init);
+MSTP_MSTI_PORT_INFO_t *
             mstp_initMstiPortData(MSTID_t mstid, LPORT_t lport, bool init);
-extern MSTP_CIST_PORT_INFO_t *
+MSTP_CIST_PORT_INFO_t *
             mstp_initCistPortData(LPORT_t lport, bool init);
-extern void mstp_clearProtocolData(void);
-extern void mstp_clearBridgeMstiData(MSTID_t mstid);
-extern void mstp_clearMstiPortData(MSTID_t mstid, LPORT_t lport);
-extern void mstp_clearCistPortData(LPORT_t lport);
-extern void mstp_clearCommonPortData(LPORT_t lport);
-extern void mstp_clearMstpToOthersMessageQueue(void);
-extern void mstp_clearMstpToOthersMessageQueue(void);
-extern void mstp_updateMstpCBPortMaps(LPORT_t lport);
+void mstp_clearProtocolData(void);
+void mstp_clearBridgeMstiData(MSTID_t mstid);
+void mstp_clearMstiPortData(MSTID_t mstid, LPORT_t lport);
+void mstp_clearCistPortData(LPORT_t lport);
+void mstp_clearCommonPortData(LPORT_t lport);
+void mstp_clearMstpToOthersMessageQueue(void);
+void mstp_clearMstpToOthersMessageQueue(void);
+void mstp_updateMstpCBPortMaps(LPORT_t lport);
 /*
  * mstp_util.c
  */
-extern void mstp_updatePortOperEdgeState(MSTID_t mstid, LPORT_t lport, bool state);
+void mstp_updatePortOperEdgeState(MSTID_t mstid, LPORT_t lport, bool state);
 bool
 mstpCistCompareRootTimes(MSTP_CIST_ROOT_TIMES_t *rootTime,  uint16_t helloTime);
 void mstp_processTimerTickEvent();
-extern void mstp_collectNotForwardingPorts(PORT_MAP *pmap);
-extern void mstp_blockedPortsBackToForward(PORT_MAP *pmap);
-extern uint32_t
+void mstp_collectNotForwardingPorts(PORT_MAP *pmap);
+void mstp_blockedPortsBackToForward(PORT_MAP *pmap);
+uint32_t
             mstp_portAutoPathCostDetect(LPORT_t lport);
-extern PORT_DUPLEX
+PORT_DUPLEX
             mstp_portDuplexModeDetect(LPORT_t lport);
-extern int mstp_getComponentId();
-extern bool mstp_isTopologyChange(MSTID_t mstid);
-extern int  mstp_getCistUptime(LPORT_t lport);
-extern int  mstp_getMstiUptime(MSTID_t mstid, LPORT_t lport);
-extern void mstp_portAutoDetectParamsSet(LPORT_t lport, SPEED_DPLX *pSpeed);
-extern MSTP_BPDU_TYPE_t
+int mstp_getComponentId();
+bool mstp_isTopologyChange(MSTID_t mstid);
+int  mstp_getCistUptime(LPORT_t lport);
+int  mstp_getMstiUptime(MSTID_t mstid, LPORT_t lport);
+void mstp_portAutoDetectParamsSet(LPORT_t lport, SPEED_DPLX *pSpeed);
+MSTP_BPDU_TYPE_t
             mstp_getBpduType(MSTP_RX_PDU *pkt);
-extern VLAN_GROUP_t
+VLAN_GROUP_t
             mstp_mapMstIdToVlanGroupNum(MSTID_t mstid);
-extern void mstp_unmapMstIdFromVlanGroupNum(MSTID_t mstid);
-extern bool mstp_isThisBridgeRegionalRoot(MSTID_t mstid);
-extern MSTP_PRT_STATE_t *
+void mstp_unmapMstIdFromVlanGroupNum(MSTID_t mstid);
+bool mstp_isThisBridgeRegionalRoot(MSTID_t mstid);
+MSTP_PRT_STATE_t *
             mstp_utilPrtStatePtr(MSTID_t mstid, LPORT_t lport);
-extern MSTP_PIM_STATE_t *
+MSTP_PIM_STATE_t *
             mstp_utilPimStatePtr(MSTID_t mstid, LPORT_t lport);
-extern MSTP_TCM_STATE_t *
+MSTP_TCM_STATE_t *
             mstp_utilTcmStatePtr(MSTID_t mstid, LPORT_t lport);
-extern bool mstp_rcvdAnyMsgCondition(LPORT_t lport);
-extern void mstp_preventTxOnBridge(void);
-extern void mstp_doPendingTxOnBridge(void);
-extern void mstp_buildMstConfigurationDigest(uint8_t  *cfgDigest);
-extern MSTID_t
+bool mstp_rcvdAnyMsgCondition(LPORT_t lport);
+void mstp_preventTxOnBridge(void);
+void mstp_doPendingTxOnBridge(void);
+void mstp_buildMstConfigurationDigest(uint8_t  *cfgDigest);
+MSTID_t
             mstp_getMstIdForVlan(VID_t vlan);
-extern MSTP_MSTI_CONFIG_MSG_t *
+MSTP_MSTI_CONFIG_MSG_t *
             mstp_findNextMstiCfgMsgInBpdu(MSTP_RX_PDU *pkt,
                                           MSTP_MSTI_CONFIG_MSG_t *current);
-extern MSTP_TREE_MSG_t *
+MSTP_TREE_MSG_t *
             mstp_findMstiPortStateChgMsg(MSTID_t mstid);
-extern void mstp_disableForwarding(MSTID_t mstid, LPORT_t lport);
-extern void mstp_disableLearning(MSTID_t mstid, LPORT_t lport);
-extern void mstp_enableForwarding(MSTID_t msti, LPORT_t lport);
-extern void mstp_enableLearning(MSTID_t mstid, LPORT_t lport);
-extern void mstp_flush(MSTID_t mstid, LPORT_t lport);
-extern bool mstp_ProtocolIsEnabled();
-extern bool mstp_mapVlanToMsti(MSTID_t msti, VID_t vlan);
-extern void mstp_noStpPropagatePortUpState(LPORT_t lport);
-extern void mstp_noStpPropagatePortDownState(LPORT_t lport);
-extern void mstp_getMyMstConfigurationId(MSTP_MST_CONFIGURATION_ID_t *mstCfgId);
-extern void mstp_getMstConfigurationDigestStr(char *buf, int bufLen);
-extern void mstp_enableActiveLogicalPorts(void);
-extern void mstp_portEnable(LPORT_t lport);
-extern void mstp_portDisable(LPORT_t lport);
-extern bool mstp_validateBpdu(MSTP_RX_PDU *pkt);
-extern bool mstp_betterOrSameInfo(MSTID_t mstid, LPORT_t lport,
+void mstp_disableForwarding(MSTID_t mstid, LPORT_t lport);
+void mstp_disableLearning(MSTID_t mstid, LPORT_t lport);
+void mstp_enableForwarding(MSTID_t msti, LPORT_t lport);
+void mstp_enableLearning(MSTID_t mstid, LPORT_t lport);
+void mstp_flush(MSTID_t mstid, LPORT_t lport);
+bool mstp_ProtocolIsEnabled();
+bool mstp_mapVlanToMsti(MSTID_t msti, VID_t vlan);
+void mstp_noStpPropagatePortUpState(LPORT_t lport);
+void mstp_noStpPropagatePortDownState(LPORT_t lport);
+void mstp_getMyMstConfigurationId(MSTP_MST_CONFIGURATION_ID_t *mstCfgId);
+void mstp_getMstConfigurationDigestStr(char *buf, int bufLen);
+void mstp_enableActiveLogicalPorts(void);
+void mstp_portEnable(LPORT_t lport);
+void mstp_portDisable(LPORT_t lport);
+bool mstp_validateBpdu(MSTP_RX_PDU *pkt);
+bool mstp_betterOrSameInfo(MSTID_t mstid, LPORT_t lport,
                                   MSTP_INFO_IS_t newInfoIs);
-extern void mstp_clearAllRcvdMsgs(LPORT_t lport);
-extern void mstp_updtBPDUVersion(MSTP_RX_PDU *pkt, LPORT_t lport);
-extern void mstp_clearReselectTree(MSTID_t mstid);
-extern bool mstp_fromSameRegion(MSTP_RX_PDU *pkt, LPORT_t lport);
-extern void mstp_newTcWhile(MSTID_t mstid, LPORT_t lport);
-extern MSTP_RCVD_INFO_t
+void mstp_clearAllRcvdMsgs(LPORT_t lport);
+void mstp_updtBPDUVersion(MSTP_RX_PDU *pkt, LPORT_t lport);
+void mstp_clearReselectTree(MSTID_t mstid);
+bool mstp_fromSameRegion(MSTP_RX_PDU *pkt, LPORT_t lport);
+void mstp_newTcWhile(MSTID_t mstid, LPORT_t lport);
+MSTP_RCVD_INFO_t
             mstp_rcvInfo(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
 
-extern void mstp_recordAgreement(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
-extern void mstp_recordMastered(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
-extern void mstp_recordDispute(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
-extern void mstp_recordMasteredMsti(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
-extern void mstp_recordProposal(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
-extern void mstp_recordPriority(MSTID_t mstid,  LPORT_t lport);
-extern void mstp_recordTimes(MSTID_t mstid,  LPORT_t lport);
-extern void mstp_setRcvdMsgs(MSTP_RX_PDU *pkt, LPORT_t lport);
-extern void mstp_setReRootTree(MSTID_t mstid);
-extern void mstp_setSelectedTree(MSTID_t mstid);
-extern void mstp_setSyncTree(MSTID_t mstid);
-extern void mstp_setTcFlags(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
-extern void mstp_setTcPropTree(MSTID_t mstid, LPORT_t lport);
-extern void mstp_syncMaster(void);
-extern void mstp_txTcn(LPORT_t lport);
-extern void mstp_txConfig(LPORT_t lport);
-extern void mstp_txMstp(LPORT_t lport);
-extern void mstp_updtRcvdInfoWhile(MSTID_t mstid, LPORT_t lport);
-extern void mstp_updtRolesDisabledTree(MSTID_t mstid);
-extern void mstp_updtRolesTree(MSTID_t mstid);
-extern bool mstp_AllSyncedCondition(MSTID_t mstid, LPORT_t lport);
-extern bool mstp_allTransmitReadyCondition(LPORT_t lport);
-extern bool mstp_ReRootedCondition(MSTID_t mstid, LPORT_t lport);
-extern uint16_t
+void mstp_recordAgreement(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_recordMastered(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_recordDispute(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_recordMasteredMsti(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_recordProposal(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_recordPriority(MSTID_t mstid,  LPORT_t lport);
+void mstp_recordTimes(MSTID_t mstid,  LPORT_t lport);
+void mstp_setRcvdMsgs(MSTP_RX_PDU *pkt, LPORT_t lport);
+void mstp_setReRootTree(MSTID_t mstid);
+void mstp_setSelectedTree(MSTID_t mstid);
+void mstp_setSyncTree(MSTID_t mstid);
+void mstp_setTcFlags(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_setTcPropTree(MSTID_t mstid, LPORT_t lport);
+void mstp_syncMaster(void);
+void mstp_txTcn(LPORT_t lport);
+void mstp_txConfig(LPORT_t lport);
+void mstp_txMstp(LPORT_t lport);
+void mstp_updtRcvdInfoWhile(MSTID_t mstid, LPORT_t lport);
+void mstp_updtRolesDisabledTree(MSTID_t mstid);
+void mstp_updtRolesTree(MSTID_t mstid);
+bool mstp_AllSyncedCondition(MSTID_t mstid, LPORT_t lport);
+bool mstp_allTransmitReadyCondition(LPORT_t lport);
+bool mstp_ReRootedCondition(MSTID_t mstid, LPORT_t lport);
+uint16_t
             mstp_forwardDelayParameter(LPORT_t lport);
-extern bool mstp_isPortRoleSetOnAnyTree(LPORT_t lport, MSTP_PORT_ROLE_t role);
-extern void mstp_informOtherSubsystems(uint32_t operation);
-extern void
+bool mstp_isPortRoleSetOnAnyTree(LPORT_t lport, MSTP_PORT_ROLE_t role);
+void mstp_informOtherSubsystems(uint32_t operation);
+void
 mstp_informDBOnPortStateChange(uint32_t operation);
-extern void mstp_updateCstRootHistory (MSTP_BRIDGE_IDENTIFIER_t rootID);
-extern void mstp_updateIstRootHistory (MSTP_BRIDGE_IDENTIFIER_t rgnRootID);
-extern void mstp_updateMstiRootHistory(MSTID_t mstid,
+void mstp_updateCstRootHistory (MSTP_BRIDGE_IDENTIFIER_t rootID);
+void mstp_updateIstRootHistory (MSTP_BRIDGE_IDENTIFIER_t rgnRootID);
+void mstp_updateMstiRootHistory(MSTID_t mstid,
                                        MSTP_BRIDGE_IDENTIFIER_t rgnRootID);
-extern void mstp_logNewRootId(MSTP_BRIDGE_IDENTIFIER_t oldRootId,
+void mstp_logNewRootId(MSTP_BRIDGE_IDENTIFIER_t oldRootId,
                               MSTP_BRIDGE_IDENTIFIER_t newRootId,
                               bool isCST, MSTID_t mstid);
-extern void mstp_sendErrantBpduTrap(uint32_t index);
-extern bool mstp_isTrapEnable(uint32_t trap);
-extern bool mstp_isTcTrapEnabled(uint32_t mstid);
-extern bool mstp_trapRateLimit(uint32_t trap, uint32_t lport);
-extern int32_t mstp_dot1dStpPortState( LPORT_t lport );
-extern void mstp_triggerTrap( LPORT_t lport, uint8_t trap_delay,
+void mstp_sendErrantBpduTrap(uint32_t index);
+bool mstp_isTrapEnable(uint32_t trap);
+bool mstp_isTcTrapEnabled(uint32_t mstid);
+bool mstp_trapRateLimit(uint32_t trap, uint32_t lport);
+int32_t mstp_dot1dStpPortState( LPORT_t lport );
+void mstp_triggerTrap( LPORT_t lport, uint8_t trap_delay,
                               bool force_delay);
-extern void mstp_8021x_cd_notify(LPORT_t lport, bool eligible);
+void mstp_8021x_cd_notify(LPORT_t lport, bool eligible);
 
 /*
  * mstp_ctrl.c
  */
-extern void mstp_processTimerTickEvent();
+void mstp_processTimerTickEvent();
 
 /*
  * mstp_dyn_reconfig.c
  */
-extern bool mstp_updateMstiVidMapping(MSTID_t mstid,
+bool mstp_updateMstiVidMapping(MSTID_t mstid,
                                       VID_MAP newVidMap);
 /*standard mib*/
 /*
  * mstp_recv.c
  */
-extern MSTP_PKT_TYPE_t mstp_decodeBpdu(MSTP_RX_PDU *pkt);
+MSTP_PKT_TYPE_t mstp_decodeBpdu(MSTP_RX_PDU *pkt);
 
 /*
  * mstp_pti_sm.c
  */
-extern void mstp_ptiSm(LPORT_t lport);
+void mstp_ptiSm(LPORT_t lport);
 /*
  * mstp_prx_sm.c
  */
-extern void mstp_prxSm(MSTP_RX_PDU *pkt, LPORT_t lport);
+void mstp_prxSm(MSTP_RX_PDU *pkt, LPORT_t lport);
 
 /*
  * mstp_pim_sm.c
  */
-extern void mstp_pimSm(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
+void mstp_pimSm(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport);
 /*
  * mstp_prs_sm.c
  */
-extern void mstp_prsSm(MSTID_t mstid);
+void mstp_prsSm(MSTID_t mstid);
 
 /*
  * mstp_ppm_sm.c
  */
-extern void mstp_ppmSm(LPORT_t lport);
+void mstp_ppmSm(LPORT_t lport);
 
 /*
  * mstp_pst_sm.c
  */
-extern void mstp_pstSm(MSTID_t mstid, LPORT_t lport);
+void mstp_pstSm(MSTID_t mstid, LPORT_t lport);
 
 /*
  * mstp_tcm_sm.c
  */
-extern void mstp_tcmSm(MSTID_t mstid, LPORT_t lport);
+void mstp_tcmSm(MSTID_t mstid, LPORT_t lport);
 
 /*
  * mstp_ptx_sm.c
  */
-extern void mstp_ptxSm(LPORT_t lport);
+void mstp_ptxSm(LPORT_t lport);
 
 /*
  * mstp_prt_sm.c
  */
-extern void mstp_prtSm(MSTID_t mstid, LPORT_t lport);
+void mstp_prtSm(MSTID_t mstid, LPORT_t lport);
 
 /*
  * mstp_bdm_sm.c
  */
-extern void mstp_bdmSm(LPORT_t lport);
+void mstp_bdmSm(LPORT_t lport);
 
 /*
  * mstp_show.c
  */
 bool mstp_return_topology_change(MSTID_t mstid);
-extern void mstp_showInit(void);
-extern void mstp_showMain(void* ses, int argc, char **argv);
-extern bool isLportForwardingOnVlan(LPORT_t lport, VID_t vlan);
-extern int  mstp_validateStrPortNumber(char *portStr);
-extern int  mstp_validateStrMstid(char *mstidStr);
-extern int  mstp_validateStrVid(char *vidStr);
+void mstp_showInit(void);
+void mstp_showMain(void* ses, int argc, char **argv);
+bool isLportForwardingOnVlan(LPORT_t lport, VID_t vlan);
+int  mstp_validateStrPortNumber(char *portStr);
+int  mstp_validateStrMstid(char *mstidStr);
+int  mstp_validateStrVid(char *vidStr);
 
 /*
  * mstp_debug.c
  */
 #ifdef MSTP_DEBUG
-extern void mstp_debugInit(void);
-extern void mstp_dbgMain(void* ses, int argc, char **argv);
-extern void mstp_dbgBpduPrint(MSTP_RX_PDU *pkt);
+void mstp_debugInit(void);
+void mstp_dbgMain(void* ses, int argc, char **argv);
+void mstp_dbgBpduPrint(MSTP_RX_PDU *pkt);
 #endif /* MSTP_DEBUG */
 
 void
@@ -3535,18 +3535,18 @@ int
 mstpGetPortHistory(MSTID_t mstid, LPORT_t lport, uint8_t histIndex,
                    MSTP_PORT_HISTORY_t *portHistory);
 void mstp_sendTopologyChangeTrap(uint32_t msti, uint32_t port);
-extern bool mstpCheckForTcGeneration(MSTID_t mstid, LPORT_t lport,
+bool mstpCheckForTcGeneration(MSTID_t mstid, LPORT_t lport,
                                      MSTP_PORT_ROLE_t);
 void mstpUpdateTcHistory(MSTID_t mstid, LPORT_t lport, bool Originated);
 bool mstpGetTcHistoryEntry(bool Orig, MSTID_t mstid,
                             uint32_t idx, MSTP_TC_HISTORY_t  *getEntry);
 bool mstpValidTcHistory(bool originated, MSTID_t mstid,
                         uint8_t  idx);
-extern void intf_get_port_name(LPORT_t lport, char *port_name);
-extern bool intf_get_lport_speed_duplex(LPORT_t lport, SPEED_DPLX *sd);
+void intf_get_port_name(LPORT_t lport, char *port_name);
+bool intf_get_lport_speed_duplex(LPORT_t lport, SPEED_DPLX *sd);
 
-extern void mstp_protocolData(MSTP_RX_PDU *msg);
-extern void mstp_errantProtocolData(MSTP_RX_PDU *msg, TRAP_SOURCE_TYPE_e source);
-extern void mstp_processUnauthorizedBpdu(MSTP_RX_PDU *msg, TRAP_SOURCE_TYPE_e source);
-extern void mstp_convertPortRoleEnumToString(MSTP_PORT_ROLE_t role,char *string);
+void mstp_protocolData(MSTP_RX_PDU *msg);
+void mstp_errantProtocolData(MSTP_RX_PDU *msg, TRAP_SOURCE_TYPE_e source);
+void mstp_processUnauthorizedBpdu(MSTP_RX_PDU *msg, TRAP_SOURCE_TYPE_e source);
+void mstp_convertPortRoleEnumToString(MSTP_PORT_ROLE_t role,char *string);
 #endif /* MSTPD_FSM_H */

@@ -53,32 +53,9 @@
 VLOG_DEFINE_THIS_MODULE(mstpd);
 
 bool exiting = false;
-static unixctl_cb_func mstpd_unixctl_dump;
 static unixctl_cb_func ops_mstpd_exit;
 
 extern int mstpd_shutdown;
-
-/**
- * ovs-appctl interface callback function to dump internal debug information.
- * This top level debug dump function calls other functions to dump mstpd
- * daemon's internal data. The function arguments in argv are used to
- * control the debug output.
- *
- * @param conn connection to ovs-appctl interface.
- * @param argc number of arguments.
- * @param argv array of arguments.
- * @param OVS_UNUSED aux argument not used.
- */
-static void
-mstpd_unixctl_dump(struct unixctl_conn *conn, int argc,
-                   const char *argv[], void *aux OVS_UNUSED)
-{
-    struct ds ds = DS_EMPTY_INITIALIZER;
-
-    mstpd_debug_dump(&ds, argc, argv);
-    unixctl_command_reply(conn, ds_cstr(&ds));
-    ds_destroy(&ds);
-} /* mstpd_unixctl_dump */
 
 /**
  * mstpd daemon's timer handler function.
@@ -132,7 +109,17 @@ mstpd_init(const char *db_path, struct unixctl_server *appctl)
     mstpd_ovsdb_init(db_path);
 
     /* Register ovs-appctl commands for this daemon. */
-    unixctl_command_register("mstpd/dump", "", 0, 2, mstpd_unixctl_dump, NULL);
+    unixctl_command_register("mstpd/ovsdb/cist", "", 0, 0, mstpd_cist_unixctl_list, NULL);
+    unixctl_command_register("mstpd/ovsdb/cist_port", "port", 1, 1, mstpd_cist_port_unixctl_list, NULL);
+    unixctl_command_register("mstpd/ovsdb/msti", "msti", 1, 1, mstpd_msti_unixctl_list, NULL);
+    unixctl_command_register("mstpd/ovsdb/msti_port", "msti port", 2, 2, mstpd_msti_port_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/cist", "", 0, 0, mstpd_daemon_cist_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/cist_port", "port", 1, 1, mstpd_daemon_cist_port_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/msti", "msti", 1, 1, mstpd_daemon_msti_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/msti_port", "msti port", 2, 2, mstpd_daemon_msti_port_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/comm_port", "port", 1, 1, mstpd_daemon_comm_port_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/mstp_debug_sm", "", 2, 2, mstpd_daemon_debug_sm_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/mstp_digest", "", 0, 0, mstpd_daemon_digest_unixctl_list, NULL);
 
     /* Spawn off the OVSDB interface thread. */
     rc = pthread_create(&ovs_if_thread,

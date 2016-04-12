@@ -20,10 +20,21 @@
 #include <vswitch-idl.h>
 #include "mstp_fsm.h"
 
-
-extern bool exiting;
+struct ovsdb_idl *idl;
+bool exiting;
 #define FULL_DUPLEX 1
 #define HALF_DUPLEX 2
+pthread_mutex_t ovsdb_mutex;
+/* Macros to lock and unlock mutexes in a verbose manner. */
+#define MSTP_OVSDB_LOCK { \
+                VLOG_DBG("%s(%d): MSTP_OVSDB_LOCK: taking lock...", __FUNCTION__, __LINE__); \
+                pthread_mutex_lock(&ovsdb_mutex); \
+}
+
+#define MSTP_OVSDB_UNLOCK { \
+                VLOG_DBG("%s(%d): MSTP_OVSDB_UNLOCK: releasing lock...", __FUNCTION__, __LINE__); \
+                pthread_mutex_unlock(&ovsdb_mutex); \
+}
 
 /**************************************************************************//**
  * mstpd daemon's main OVS interface function.
@@ -206,41 +217,49 @@ typedef struct mstp_msti_port_stat_info {
     uint16_t designated_port;
 } mstp_msti_port_stat_info;
 
+struct mstp_global_config mstp_global_conf;
+struct mstp_cist_config mstp_cist_conf;
+struct iface_data *idp_lookup[MAX_ENTRIES_IN_POOL+1];
+struct mstp_cist_port_config *cist_port_lookup[MAX_ENTRIES_IN_POOL+1];
+struct mstp_msti_config *msti_lookup[MSTP_INSTANCES_MAX+1];
+struct mstp_msti_port_config *msti_port_lookup[MSTP_INSTANCES_MAX+1][MAX_ENTRIES_IN_POOL+1];
 
-extern void *mstpd_ovs_main_thread(void *arg);
+
+void *mstpd_ovs_main_thread(void *arg);
 // Utility functions
-extern struct iface_data *find_iface_data_by_index(int index);
-extern const char * intf_get_mac_addr(uint16_t lport);
-extern const char* system_get_mac_addr(void);
-extern void update_mstp_tx_counters();
-extern int mstp_cist_config_update();
-extern int mstp_cist_port_config_update();
-extern int mstp_msti_update_config();
-extern int mstp_msti_port_update_config();
-extern int mstp_global_config_update();
-extern void clear_mstp_global_config();
-extern void clear_mstp_cist_config();
-extern void clear_mstp_cist_port_config();
-extern void clear_mstp_msti_config();
-extern void clear_mstp_msti_port_config();
-extern void mstp_config_reinit();
-extern void mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,const bool value);
-extern void mstp_util_set_cist_table_value (const char *key, int64_t value);
-extern void mstp_util_set_cist_table_string (const char *key, const char *string);
-extern void mstp_util_set_cist_port_table_value (const char *if_name, const char *key, int64_t value);
-extern void mstp_util_set_cist_port_table_string (const char *if_name, const char *key, char *string);
-extern void mstp_util_set_msti_table_string (const char *key, const char *string, int mstid);
-extern void mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid);
-extern void mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, int lport);
-extern void mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, int lport);
-extern void handle_vlan_add_in_mstp_config(int vlan);
-extern void handle_vlan_delete_in_mstp_config(int vlan);
-extern void update_port_entry_in_cist_mstp_instances(char *name, int operation);
-extern void update_port_entry_in_msti_mstp_instances(char *name, int operation);
-extern void update_mstp_on_lport_add(int lport);
-extern bool is_lport_down(int lport);
-extern bool is_lport_up(int lport);
-extern void disable_logical_port(int lport);
-extern void enable_logical_port(int lport);
-extern void enable_or_disable_port(int lport,bool enable);
+struct iface_data *find_iface_data_by_index(int index);
+struct iface_data *find_iface_data_by_name(char *name);
+const char * intf_get_mac_addr(uint16_t lport);
+const char* system_get_mac_addr(void);
+void update_mstp_tx_counters();
+int mstp_cist_config_update();
+int mstp_cist_port_config_update();
+int mstp_msti_update_config();
+int mstp_msti_port_update_config();
+int mstp_global_config_update();
+void clear_mstp_global_config();
+void clear_mstp_cist_config();
+void clear_mstp_cist_port_config();
+void clear_mstp_msti_config();
+void clear_mstp_msti_port_config();
+void mstp_config_reinit();
+void mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,const bool value);
+void mstp_util_set_cist_table_value (const char *key, int64_t value);
+void mstp_util_set_cist_table_string (const char *key, const char *string);
+void mstp_util_set_cist_port_table_value (const char *if_name, const char *key, int64_t value);
+void mstp_util_set_cist_port_table_string (const char *if_name, const char *key, char *string);
+void mstp_util_set_msti_table_string (const char *key, const char *string, int mstid);
+void mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid);
+void mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, int lport);
+void mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, int lport);
+void handle_vlan_add_in_mstp_config(int vlan);
+void handle_vlan_delete_in_mstp_config(int vlan);
+void update_port_entry_in_cist_mstp_instances(char *name, int operation);
+void update_port_entry_in_msti_mstp_instances(char *name, int operation);
+void update_mstp_on_lport_add(int lport);
+bool is_lport_down(int lport);
+bool is_lport_up(int lport);
+void disable_logical_port(int lport);
+void enable_logical_port(int lport);
+void enable_or_disable_port(int lport,bool enable);
 #endif /* __MSTP_OVSDB_IF__H__ */

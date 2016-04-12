@@ -85,15 +85,15 @@ typedef struct mstpd_message_struct
 
 } mstpd_message;
 
-extern int mstpd_send_event(mstpd_message *pmsg);
-extern mstpd_message* mstpd_wait_for_next_event(void);
-extern void mstpd_event_free(mstpd_message *pmsg);
-extern void mstp_processLportUpEvent(mstpd_message *msg);
-extern void mstp_processLportDownEvent(mstpd_message *msg);
-extern void update_mstp_global_config(mstpd_message *msg);
-extern void update_mstp_cist_config(mstpd_message *msg);
-extern void update_mstp_cist_port_config(mstpd_message *msg);
-extern void update_mstp_msti_config(mstpd_message *msg);
-extern void update_mstp_msti_port_config(mstpd_message *msg);
-extern void delete_mstp_msti_config(mstpd_message *msg);
+int mstpd_send_event(mstpd_message *pmsg);
+mstpd_message* mstpd_wait_for_next_event(void);
+void mstpd_event_free(mstpd_message *pmsg);
+void mstp_processLportUpEvent(mstpd_message *msg);
+void mstp_processLportDownEvent(mstpd_message *msg);
+void update_mstp_global_config(mstpd_message *msg);
+void update_mstp_cist_config(mstpd_message *msg);
+void update_mstp_cist_port_config(mstpd_message *msg);
+void update_mstp_msti_config(mstpd_message *msg);
+void update_mstp_msti_port_config(mstpd_message *msg);
+void delete_mstp_msti_config(mstpd_message *msg);
 #endif  // __MSTP_CMN_H__

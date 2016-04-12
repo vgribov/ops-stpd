@@ -265,6 +265,7 @@ mstp_adminStatusUpdate(int status)
    {/* the protocol has been enabled, run it */
 
       Spanning = TRUE; /* also used by other features */
+      mstp_Bridge.ForceVersion = MSTP_PROTOCOL_VERSION_ID_MST;
 
       /*---------------------------------------------------------------------
        * Initialize global 'mstp_MstiVlanTable'. By default all VLANs
@@ -272,9 +273,9 @@ mstp_adminStatusUpdate(int status)
        * Initialize global 'mstp_MstIdToVlanGroupNumTable' - used for
        * mapping MST instance ID to VLAN group number.
        *---------------------------------------------------------------------*/
-      VLOG_INFO("%s : MSTP Enable Path", __FUNCTION__);
+      VLOG_DBG("%s : MSTP Enable Path", __FUNCTION__);
       mstp_initMstiVlanTables();
-      VLOG_INFO("%s : MSTP VLAN tables initialized", __FUNCTION__);
+      VLOG_DBG("%s : MSTP VLAN tables initialized", __FUNCTION__);
 
       /*---------------------------------------------------------------------
        * allocate and initialize MSTP data structures with the data read
@@ -283,7 +284,7 @@ mstp_adminStatusUpdate(int status)
        *       they need to be allocated and filled from config
        *---------------------------------------------------------------------*/
       mstp_initProtocolData(TRUE);
-      VLOG_INFO("%s : MSTP Protocol tables initialized", __FUNCTION__);
+      VLOG_DBG("%s : MSTP Protocol tables initialized", __FUNCTION__);
 
       /*---------------------------------------------------------------------
        * No configuration dynamic changes occured yet
@@ -307,9 +308,9 @@ mstp_adminStatusUpdate(int status)
       /*---------------------------------------------------------------------
        * initialize MSTP state machines,
        *---------------------------------------------------------------------*/
-      VLOG_INFO("%s : MSTP Trigerring State machines.", __FUNCTION__);
+      VLOG_DBG("%s : MSTP Trigerring State machines.", __FUNCTION__);
       mstp_initStateMachines();
-      VLOG_INFO("%s : MSTP State machines triggered.", __FUNCTION__);
+      VLOG_DBG("%s : MSTP State machines triggered.", __FUNCTION__);
 
       /*---------------------------------------------------------------------
        * activate all logical ports that are in 'Up' state.

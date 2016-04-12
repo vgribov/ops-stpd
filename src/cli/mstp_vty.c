@@ -285,7 +285,7 @@ cli_show_mstp_config() {
             atoi(smap_get(&bridge_row->other_config, MSTP_CONFIG_REV)),
             VTY_NEWLINE);
     vty_out(vty, "   %-20s : %-15s%s", "MST config digest",
-            smap_get(&bridge_row->other_config, MSTP_CONFIG_DIGEST), VTY_NEWLINE);
+            smap_get(&bridge_row->status, MSTP_CONFIG_DIGEST), VTY_NEWLINE);
     vty_out(vty, "   %-20s : %-15ld%s", "Number of instances",
             bridge_row->n_mstp_instances, VTY_NEWLINE);
 
@@ -1752,7 +1752,7 @@ DEFUN(cli_mstp_config_name,
       "spanning-tree config-name WORD",
       SPAN_TREE
       "Set the MST region configuration name\n"
-      "Specify the configuration name (maximum 32 characters)\n") {
+      "Specify the configuration name (maximum 32 characters) (Default: System MAC)\n") {
 
     if (strlen(argv[0]) > MSTP_MAX_CONFIG_NAME_LEN) {
         vty_out(vty, "Config-name string length exceeded.%s", VTY_NEWLINE);
@@ -1766,8 +1766,8 @@ DEFUN(cli_mstp_config_rev,
       cli_mstp_config_rev_cmd,
       "spanning-tree config-revision <1-65535>",
       SPAN_TREE
-      "Set the MST region configuration revision number(Default: 0)\n"
-      "Enter an integer number\n") {
+      "Set the MST region configuration revision number\n"
+      "Enter an integer number (Default: 0)\n") {
 
     mstp_cli_set_bridge_table(MSTP_CONFIG_REV, argv[0]);
     return CMD_SUCCESS;
@@ -1779,7 +1779,7 @@ DEFUN(cli_no_mstp_config_name,
       NO_STR
       SPAN_TREE
       "Set the MST region configuration name\n"
-      "Specify the configuration name (maximum 32 characters)\n") {
+      "Specify the configuration name (maximum 32 characters) (Default: System MAC)\n") {
 
     const struct ovsrec_system *system_row;
     system_row = ovsrec_system_first(idl);
@@ -1797,8 +1797,8 @@ DEFUN(cli_no_mstp_config_rev,
       "no spanning-tree config-revision {<1-65535>}",
       NO_STR
       SPAN_TREE
-      "Set the MST region configuration revision number(Default: 0)\n"
-      "Enter an integer number\n") {
+      "Set the MST region configuration revision number\n"
+      "Enter an integer number (Default: 0)\n") {
 
     mstp_cli_set_bridge_table(MSTP_CONFIG_REV, DEF_CONFIG_REV);
     return CMD_SUCCESS;
@@ -1846,7 +1846,7 @@ DEFUN(cli_mstp_port_type,
       SPAN_TREE
       "Type of port\n"
       "Set as administrative edge port\n"
-      "Set as administrative network port\n") {
+      "Set as administrative network port (Default)\n") {
 
     const bool value = (VTYSH_STR_EQ(argv[0], "admin-edge"))?true:false;
     mstp_cli_set_cist_port_table( vty->index, MSTP_ADMIN_EDGE, value);
@@ -1860,7 +1860,7 @@ DEFUN(cli_no_mstp_port_type_admin,
       SPAN_TREE
       "Type of port\n"
       "Set as administrative edge port\n"
-      "Set as administrative network port\n") {
+      "Set as administrative network port (Default)\n") {
 
     mstp_cli_set_cist_port_table(vty->index, MSTP_ADMIN_EDGE, DEF_ADMIN_EDGE);
     return CMD_SUCCESS;
@@ -1871,7 +1871,7 @@ DEFUN(cli_no_mstp_port_type,
       "no spanning-tree port-type",
       NO_STR
       SPAN_TREE
-      "Type of port\n") {
+      "Type of port (Default: Network port)\n") {
 
     mstp_cli_set_cist_port_table(vty->index, MSTP_ADMIN_EDGE, DEF_ADMIN_EDGE);
     return CMD_SUCCESS;
@@ -1899,7 +1899,7 @@ DEFUN(cli_mstp_bpdu_enable,
       LOOP_GUARD
       BPDU_FILTER
       "Enable feature for this port\n"
-      "Disable feature for this port\n") {
+      "Disable feature for this port (Default)\n") {
 
     const bool value = (VTYSH_STR_EQ(argv[1], "enable"))?true:false;
     mstp_cli_set_cist_port_table( vty->index, argv[0], value);
@@ -1916,7 +1916,7 @@ DEFUN(cli_no_mstp_bpdu_enable,
       LOOP_GUARD
       BPDU_FILTER
       "Enable feature for this port\n"
-      "Disable feature for this port\n") {
+      "Disable feature for this port (Default)\n") {
 
     mstp_cli_set_cist_port_table(vty->index, argv[0], DEF_BPDU_STATUS);
     return CMD_SUCCESS;
@@ -1941,7 +1941,7 @@ DEFUN(cli_mstp_bridge_priority,
       "spanning-tree priority <0-15>",
       SPAN_TREE
       BRIDGE_PRIORITY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 8)\n") {
 
     mstp_cli_set_cist_table( MSTP_BRIDGE_PRIORITY, atoi(argv[0]));
     return CMD_SUCCESS;
@@ -1953,7 +1953,7 @@ DEFUN(cli_no_mstp_bridge_priority,
       NO_STR
       SPAN_TREE
       BRIDGE_PRIORITY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 8)\n") {
 
     mstp_cli_set_cist_table( MSTP_BRIDGE_PRIORITY, DEF_BRIDGE_PRIORITY);
     return CMD_SUCCESS;
@@ -1966,7 +1966,7 @@ DEFUN(cli_mstp_inst_priority,
       MST_INST
       "Enter an integer number\n"
       INST_PRIORITY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 8)\n") {
 
     mstp_cli_set_mst_inst(NULL, MSTP_BRIDGE_PRIORITY, atoi(argv[0]), atoi(argv[1]));
     return CMD_SUCCESS;
@@ -1980,7 +1980,7 @@ DEFUN(cli_no_mstp_inst_priority,
       MST_INST
       "Enter an integer number\n"
       INST_PRIORITY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 8)\n") {
 
     mstp_cli_set_mst_inst(NULL, MSTP_BRIDGE_PRIORITY, atoi(argv[0]),
                         DEF_BRIDGE_PRIORITY);
@@ -1994,7 +1994,7 @@ DEFUN(cli_mstp_inst_cost,
       MST_INST
       "Enter an integer number\n"
       "Specify a standard to use when calculating the default pathcost"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 20000)\n") {
 
     mstp_cli_set_mst_inst(vty->index, MSTP_PORT_COST, atoi(argv[0]), atoi(argv[1]));
     return CMD_SUCCESS;
@@ -2008,7 +2008,7 @@ DEFUN(cli_no_mstp_inst_cost,
       MST_INST
       "Enter an integer number\n"
       "Specify a standard to use when calculating the default pathcost"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 20000)\n") {
 
     mstp_cli_set_mst_inst(vty->index, MSTP_PORT_COST, atoi(argv[0]),
                                                   DEF_MSTP_COST);
@@ -2022,7 +2022,7 @@ DEFUN(cli_mstp_inst_port_priority,
       MST_INST
       "Enter an integer number\n"
       PORT_PRIORITY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 8)\n") {
 
     mstp_cli_set_mst_inst(vty->index, MSTP_PORT_PRIORITY, atoi(argv[0]),
                                                       atoi(argv[1]));
@@ -2036,7 +2036,7 @@ DEFUN(cli_no_mstp_inst_port_priority,
       MST_INST
       "Enter an integer number\n"
       PORT_PRIORITY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 8)\n") {
 
     mstp_cli_set_mst_inst(vty->index, MSTP_PORT_PRIORITY, atoi(argv[0]),
                                       DEF_MSTP_PORT_PRIORITY);
@@ -2048,7 +2048,7 @@ DEFUN(cli_mstp_hello,
       "spanning-tree hello-time <2-10>",
       SPAN_TREE
       "Set message transmission interval in seconds on the port\n"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 2)\n") {
 
     mstp_cli_set_cist_table( MSTP_HELLO_TIME, atoi(argv[0]));
     return CMD_SUCCESS;
@@ -2060,7 +2060,7 @@ DEFUN(cli_no_mstp_hello,
       NO_STR
       SPAN_TREE
       "Set message transmission interval in seconds on the port\n"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 2)\n") {
 
     mstp_cli_set_cist_table( MSTP_HELLO_TIME, DEF_HELLO_TIME);
     return CMD_SUCCESS;
@@ -2071,7 +2071,7 @@ DEFUN(cli_mstp_forward_delay,
       "spanning-tree forward-delay <4-30>",
       SPAN_TREE
       FORWARD_DELAY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 15)\n") {
 
     mstp_cli_set_cist_table( MSTP_FORWARD_DELAY, atoi(argv[0]));
     return CMD_SUCCESS;
@@ -2083,7 +2083,7 @@ DEFUN(cli_no_mstp_forward_delay,
       NO_STR
       SPAN_TREE
       FORWARD_DELAY
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 15)\n") {
 
     mstp_cli_set_cist_table( MSTP_FORWARD_DELAY, DEF_FORWARD_DELAY);
     return CMD_SUCCESS;
@@ -2094,7 +2094,7 @@ DEFUN(cli_mstp_max_hops,
       "spanning-tree max-hops <1-40>",
       SPAN_TREE
       MAX_HOPS
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 20)\n") {
 
     mstp_cli_set_cist_table( MSTP_MAX_HOP_COUNT, atoi(argv[0]));
     return CMD_SUCCESS;
@@ -2106,7 +2106,7 @@ DEFUN(cli_no_mstp_max_hops,
       NO_STR
       SPAN_TREE
       MAX_HOPS
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 20)\n") {
 
     mstp_cli_set_cist_table( MSTP_MAX_HOP_COUNT, DEF_MAX_HOPS);
     return CMD_SUCCESS;
@@ -2117,7 +2117,7 @@ DEFUN(cli_mstp_max_age,
       "spanning-tree max-age <6-40>",
       SPAN_TREE
       "Set maximum age of received STP information before it is discarded\n"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 20)\n") {
 
     mstp_cli_set_cist_table( MSTP_MAX_AGE, atoi(argv[0]));
     return CMD_SUCCESS;
@@ -2129,7 +2129,7 @@ DEFUN(cli_no_mstp_max_age,
       NO_STR
       SPAN_TREE
       "Set maximum age of received STP information before it is discarded\n"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 20)\n") {
 
     mstp_cli_set_cist_table( MSTP_MAX_AGE, DEF_MAX_AGE);
     return CMD_SUCCESS;
@@ -2140,7 +2140,7 @@ DEFUN(cli_mstp_transmit_hold_count,
       "spanning-tree transmit-hold-count <1-10>",
       SPAN_TREE
       "Sets the transmit hold count performance parameter in pps\n"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 6)\n") {
 
     mstp_cli_set_cist_table( MSTP_TX_HOLD_COUNT, atoi(argv[0]));
     return CMD_SUCCESS;
@@ -2152,7 +2152,7 @@ DEFUN(cli_no_mstp_transmit_hold_count,
       NO_STR
       SPAN_TREE
       "Sets the transmit hold count performance parameter\n"
-      "Enter an integer number\n") {
+      "Enter an integer number (Default: 6)\n") {
 
     mstp_cli_set_cist_table( MSTP_TX_HOLD_COUNT, DEF_HOLD_COUNT);
     return CMD_SUCCESS;

@@ -33,8 +33,10 @@
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
 #include <assert.h>
+#include "mstp_ovsdb_if.h"
 #include "mstp_fsm.h"
 #include "mstp_inlines.h"
+#include "mstp.h"
 
 /* NOTE: this array is indexed by the values defined
  *       in 'MSTP_ADMIN_POINT_TO_POINT_MAC_e' enum list */
@@ -245,13 +247,7 @@ char* const MSTP_TCM_STATE_s[MSTP_TCM_STATE_MAX] =
 };
 
 static void mstp_showUsage(char *cmdName);
-static void mstp_showCistInfo(void);
 static void mstp_showCommonInfo(void);
-static void mstp_showVlansToMstiMap(void);
-static void mstp_showMstiInfo(MSTID_t mstid);
-static void mstp_showCistPortInfo(LPORT_t portNum);
-static void mstp_showMstiPortInfo(MSTID_t mstid, LPORT_t portNum);
-static void mstp_showCommPortInfo(LPORT_t portNum);
 static void mstp_showPortNames(LPORT_t lport, bool allPorts);
 
 void rvShowMstp (bool);
@@ -354,17 +350,12 @@ mstp_showMain(void* ses, int argc, char **argv)
          usage = true;
          goto end;
       }
-      else if(!strcmp(argv[1], "cist"))
-      {
-         mstp_showCistInfo();
-      }
       else if(!strcmp(argv[1], "comm"))
       {
          mstp_showCommonInfo();
       }
       else if(!strcmp(argv[1], "imap"))
       {
-         mstp_showVlansToMstiMap();
       }
       else if(!strcmp(argv[1], "vgi"))
       {
@@ -404,7 +395,6 @@ mstp_showMain(void* ses, int argc, char **argv)
             goto end;
          }
 
-         mstp_showMstiInfo(mstid);
       }
       else
          unknown=usage=true;
@@ -423,7 +413,6 @@ mstp_showMain(void* ses, int argc, char **argv)
                goto end;
             }
 
-            mstp_showCistPortInfo(portNum);
          }
          else
             unknown=usage=true;
@@ -440,7 +429,6 @@ mstp_showMain(void* ses, int argc, char **argv)
                goto end;
             }
 
-            mstp_showCommPortInfo(portNum);
          }
          else
             unknown=usage=true;
@@ -501,7 +489,6 @@ mstp_showMain(void* ses, int argc, char **argv)
                goto end;
             }
 
-            mstp_showMstiPortInfo(mstid, portNum);
          }
          else
             unknown=usage=true;
@@ -679,6 +666,16 @@ mstp_showUsage(char *cmdName)
 
 }
 
+void mstpd_daemon_cist_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
+{
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_cist_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
 /**PROC+**********************************************************************
  * Name:      mstp_showCistInfo
  *
@@ -690,93 +687,93 @@ mstp_showUsage(char *cmdName)
  *
  * Globals:   mstp_Bridge
  **PROC-**********************************************************************/
-static void
-mstp_showCistInfo(void)
+void
+mstpd_daemon_cist_data_dump(struct ds *ds, int argc, const char *argv[])
 {
    MSTP_CIST_INFO_t             *cistPtr = &mstp_Bridge.CistInfo;
    MSTP_CIST_BRIDGE_PRI_VECTOR_t pri_vec;
    MSTP_BRIDGE_IDENTIFIER_t      bid;
    MSTP_CIST_BRIDGE_TIMES_t      tms;
 
-   printf("mstpEnabled       : %s\n", 1 ? "Yes" : "No");
-   printf("valid             : %s\n", cistPtr->valid ? "Yes" : "No");
-   printf("cistRootPortID    : port#=%d, priority=%d\n",
+   ds_put_format(ds, "mstpEnabled       : %s\n", MSTP_ENABLED ? "Yes" : "No");
+   ds_put_format(ds, "valid             : %s\n", cistPtr->valid ? "Yes" : "No");
+   ds_put_format(ds,"cistRootPortID    : port#=%d, priority=%d\n",
           MSTP_GET_PORT_NUM(cistPtr->rootPortID),
           MSTP_GET_PORT_PRIORITY(cistPtr->rootPortID));
-   printf("CistBridgeTimes   : ");
+   ds_put_format(ds,"CistBridgeTimes   : ");
    tms = cistPtr->BridgeTimes;
-   printf("{fwdDelay=%d maxAge=%d messageAge=%d hops=%d}\n",
+   ds_put_format(ds,"{fwdDelay=%d maxAge=%d messageAge=%d hops=%d}\n",
           tms.fwdDelay,tms.maxAge,tms.messageAge,tms.hops);
 
-   printf("cistRootTimes     : ");
+   ds_put_format(ds,"cistRootTimes     : ");
    tms = cistPtr->rootTimes;
-   printf("{fwdDelay=%d maxAge=%d messageAge=%d hops=%d}\n",
+   ds_put_format(ds,"{fwdDelay=%d maxAge=%d messageAge=%d hops=%d}\n",
           tms.fwdDelay,tms.maxAge,tms.messageAge,tms.hops);
-   printf("cistRootHelloTime : %d\n", MSTP_CIST_ROOT_HELLO_TIME);
-   printf("BridgeIdentifier  : ");
+   ds_put_format(ds,"cistRootHelloTime : %d\n", MSTP_CIST_ROOT_HELLO_TIME);
+   ds_put_format(ds,"BridgeIdentifier  : ");
    bid = cistPtr->BridgeIdentifier;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
 
-   printf("CistBridgePriority:\n");
+   ds_put_format(ds,"CistBridgePriority:\n");
    pri_vec = cistPtr->BridgePriority;
-   printf("\trootID      ");
+   ds_put_format(ds,"\trootID      ");
    bid     = pri_vec.rootID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\textRootPathCost=%d\n",pri_vec.extRootPathCost);
-   printf("\trgnRootID   ");
+   ds_put_format(ds,"\textRootPathCost=%d\n",pri_vec.extRootPathCost);
+   ds_put_format(ds,"\trgnRootID   ");
    bid     = pri_vec.rgnRootID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
-   printf("\tdsnBridgeID ");
+   ds_put_format(ds,"\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
+   ds_put_format(ds,"\tdsnBridgeID ");
    bid     = pri_vec.dsnBridgeID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tdsnPortID=(%d;%d)\n",
+   ds_put_format(ds,"\tdsnPortID=(%d;%d)\n",
           MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
           MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
 
-   printf("cistRootPriority  :\n");
+   ds_put_format(ds,"cistRootPriority  :\n");
    pri_vec = cistPtr->rootPriority;
-   printf("\trootID      ");
+   ds_put_format(ds,"\trootID      ");
    bid     = pri_vec.rootID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\textRootPathCost=%d\n",pri_vec.extRootPathCost);
-   printf("\trgnRootID   ");
+   ds_put_format(ds,"\textRootPathCost=%d\n",pri_vec.extRootPathCost);
+   ds_put_format(ds,"\trgnRootID   ");
    bid     = pri_vec.rgnRootID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
-   printf("\tdsnBridgeID ");
+   ds_put_format(ds,"\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
+   ds_put_format(ds,"\tdsnBridgeID ");
    bid     = pri_vec.dsnBridgeID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tdsnPortID=(%d;%d)\n",
+   ds_put_format(ds,"\tdsnPortID=(%d;%d)\n",
           MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
           MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
-   printf("SM states         : PRS=%-13s\n",
+   ds_put_format(ds,"SM states         : PRS=%-13s\n",
           MSTP_PRS_STATE_s[cistPtr->prsState]);
-   printf("TC Trap Control   : %s", ((cistPtr->tcTrapControl) ?
+   ds_put_format(ds,"TC Trap Control   : %s", ((cistPtr->tcTrapControl) ?
                                      "true" : "false"));
 
-   printf("\n");
+   ds_put_format(ds,"\n");
 
 }
 
@@ -825,7 +822,29 @@ mstp_showCommonInfo(void)
 }
 
 /**PROC+**********************************************************************
- * Name:      mstp_showVlansToMstiMap
+ * Name:      mstpd_daemon_digest_unixctl_list
+ *
+ * Purpose:   Show MSTP config digest
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ * Globals:   mstp_Bridge
+ **PROC-**********************************************************************/
+
+void mstpd_daemon_digest_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
+{
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_digest_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstpd_daemon_digest_data_dump
  *
  * Purpose:   Show VLANs to MSTIs mapping info
  *
@@ -835,41 +854,42 @@ mstp_showCommonInfo(void)
  *
  * Globals:   mstp_Bridge, mstp_MstiVidTable
  **PROC-**********************************************************************/
-static void
-mstp_showVlansToMstiMap(void)
+void
+mstpd_daemon_digest_data_dump(struct ds *ds, int argc, const char *argv[])
 {
    MSTID_t mstid;
    int     i;
    int     indent;
    int     length;
 
-   printf("\n");
+   ds_put_format(ds, "\n");
 
-   printf("Digest Value: 0x");
+   ds_put_format(ds, "Digest Value: 0x");
    for(i=0; i< MSTP_DIGEST_SIZE; i++)
-      printf("%.2X",mstp_Bridge.MstConfigId.digest[i]);
-   printf("\n\n");
+      ds_put_format(ds, "%.2X",mstp_Bridge.MstConfigId.digest[i]);
+   ds_put_format(ds, "\n\n");
 
-   printf("MSTID VGRP# ""MAPPED VIDs\n");
-   printf("----- ----- %n", &indent);
-   printf("-------------------------------------------------------"
+   ds_put_format(ds, "MSTID VGRP# ""MAPPED VIDs\n");
+   ds_put_format(ds, "----- ----- %n", &indent);
+   ds_put_format(ds, "-------------------------------------------------------"
           "------------%n\n", &length);
    for(mstid = MSTP_CISTID; mstid <= MSTP_INSTANCES_MAX; mstid++)
    {
       if(are_any_vids_set(&mstp_MstiVidTable[mstid]))
       {
-         printf("%-5d %-5d ", mstid, MSTP_MSTI_INFO(mstid)->vlanGroupNum);
+         ds_put_format(ds, "%-5d %-5d ", mstid, MSTP_MSTI_INFO(mstid)->vlanGroupNum);
          mstp_printVidMap(&mstp_MstiVidTable[mstid], length, indent);
-         printf("\n");
+         ds_put_format(ds, "\n");
       }
    }
 
-   printf("\n");
+   ds_put_format(ds, "\n");
 
 }
 
+
 /**PROC+**********************************************************************
- * Name:      mstp_showMstiInfo
+ * Name:      mstpd_daemon_msti_unixctl_list
  *
  * Purpose:   Show status/statistics information for the given MSTI
  *
@@ -879,9 +899,33 @@ mstp_showVlansToMstiMap(void)
  *
  * Globals:   mstp_Bridge
  **PROC-**********************************************************************/
-static void
-mstp_showMstiInfo(MSTID_t mstid)
+
+void mstpd_daemon_msti_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
 {
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_msti_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstpd_daemon_msti_data_dump
+ *
+ * Purpose:   Show status/statistics information for the given MSTI
+ *
+ * Params:    mstid -> MST Instance Identifier
+ *
+ * Returns:   none
+ *
+ * Globals:   mstp_Bridge
+ **PROC-**********************************************************************/
+void
+mstpd_daemon_msti_data_dump(struct ds *ds, int argc, const char *argv[])
+{
+   uint16_t mstid = 0;
+   mstid = atoi(argv[1]);
    MSTP_MSTI_INFO_t             *mstiPtr;
    MSTP_MSTI_BRIDGE_PRI_VECTOR_t pri_vec;
    MSTP_BRIDGE_IDENTIFIER_t      bid;
@@ -892,84 +936,84 @@ mstp_showMstiInfo(MSTID_t mstid)
    mstiPtr = mstp_Bridge.MstiInfo[mstid];
    if(mstiPtr == NULL)
    {
-      printf("MST Instance %d does not exist\n", mstid);
+      ds_put_format(ds,"MST Instance %d does not exist\n", mstid);
       return;
    }
 
-   printf("\n");
+   ds_put_format(ds,"\n");
 
-   printf("mstpEnabled       : %s\n", 1 ? "Yes" : "No");
-   printf("valid             : %s\n", mstiPtr->valid ? "Yes" : "No");
-   printf("vlanGroupNum      : %d\n", mstiPtr->vlanGroupNum);
-   printf("mstiRootPortID    : port#=%d, priority=%d\n",
+   ds_put_format(ds,"mstpEnabled       : %s\n", MSTP_ENABLED ? "Yes" : "No");
+   ds_put_format(ds,"valid             : %s\n", mstiPtr->valid ? "Yes" : "No");
+   ds_put_format(ds,"vlanGroupNum      : %d\n", mstiPtr->vlanGroupNum);
+   ds_put_format(ds,"mstiRootPortID    : port#=%d, priority=%d\n",
           MSTP_GET_PORT_NUM(mstiPtr->rootPortID),
           MSTP_GET_PORT_PRIORITY(mstiPtr->rootPortID));
-   printf("MstiBridgeTimes   : ");
+   ds_put_format(ds,"MstiBridgeTimes   : ");
    tms = mstiPtr->BridgeTimes;
-   printf("{hops=%d}\n", tms.hops);
+   ds_put_format(ds,"{hops=%d}\n", tms.hops);
 
-   printf("mstiRootTimes     : ");
+   ds_put_format(ds,"mstiRootTimes     : ");
    tms = mstiPtr->rootTimes;
-   printf("{hops=%d}\n", tms.hops);
+   ds_put_format(ds,"{hops=%d}\n", tms.hops);
 
-   printf("BridgeIdentifier  : ");
+   ds_put_format(ds,"BridgeIdentifier  : ");
    bid = mstiPtr->BridgeIdentifier;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
 
-   printf("MstiBridgePriority:\n");
+   ds_put_format(ds,"MstiBridgePriority:\n");
    pri_vec = mstiPtr->BridgePriority;
-   printf("\trgnRootID   ");
+   ds_put_format(ds,"\trgnRootID   ");
    bid     = pri_vec.rgnRootID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
-   printf("\tdsnBridgeID ");
+   ds_put_format(ds,"\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
+   ds_put_format(ds,"\tdsnBridgeID ");
    bid     = pri_vec.dsnBridgeID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tdsnPortID=(%d;%d)\n",
+   ds_put_format(ds,"\tdsnPortID=(%d;%d)\n",
           MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
           MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
 
-   printf("mstiRootPriority  :\n");
+   ds_put_format(ds,"mstiRootPriority  :\n");
    pri_vec = mstiPtr->rootPriority;
-   printf("\trgnRootID   ");
+   ds_put_format(ds,"\trgnRootID   ");
    bid     = pri_vec.rgnRootID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
-   printf("\tdsnBridgeID ");
+   ds_put_format(ds,"\tintRootPathCost=%d\n",pri_vec.intRootPathCost);
+   ds_put_format(ds,"\tdsnBridgeID ");
    bid     = pri_vec.dsnBridgeID;
-   printf("{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
+   ds_put_format(ds,"{mac=%02x:%02x:%02x:%02x:%02x:%02x priority=%d sysID=%d}\n",
           PRINT_MAC_ADDR(bid.mac_address),
           MSTP_GET_BRIDGE_PRIORITY(bid),
           MSTP_GET_BRIDGE_SYS_ID(bid));
-   printf("\tdsnPortID=(%d;%d)\n",
+   ds_put_format(ds,"\tdsnPortID=(%d;%d)\n",
           MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
           MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
-   printf("SM states         : PRS=%-13s\n",
+   ds_put_format(ds,"SM states         : PRS=%-13s\n",
           MSTP_PRS_STATE_s[mstiPtr->prsState]);
-   printf("\nTotal BPDU Filters activated: %d\n",
+   ds_put_format(ds,"\nTotal BPDU Filters activated: %d\n",
           mstp_countBpduFilters());
 
-   printf("TC Trap Control   : %s", ((mstiPtr->tcTrapControl) ?
+   ds_put_format(ds,"TC Trap Control   : %s", ((mstiPtr->tcTrapControl) ?
                                      "true" : "false"));
 
-   printf("\n");
+   ds_put_format(ds,"\n");
 
 }
 
 /**PROC+**********************************************************************
- * Name:      mstp_showCistPortInfo
+ * Name:      mstpd_daemon_cist_port_unixctl_list
  *
  * Purpose:   Show status/statistics information for the given port
  *            on the CIST
@@ -980,17 +1024,46 @@ mstp_showMstiInfo(MSTID_t mstid)
  *
  * Globals:   mstp_Bridge
  **PROC-**********************************************************************/
-static void
-mstp_showCistPortInfo(LPORT_t portNum)
+
+void mstpd_daemon_cist_port_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
+{
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_cist_port_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstpd_daemon_cist_port_data_dump
+ *
+ * Purpose:   Show status/statistics information for the given port
+ *            on the CIST
+ *
+ * Params:    portNum -> logical port number
+ *
+ * Returns:   none
+ *
+ * Globals:   mstp_Bridge
+ **PROC-**********************************************************************/
+void
+mstpd_daemon_cist_port_data_dump(struct ds *ds, int argc, const char *argv[])
 {
    MSTP_CIST_PORT_INFO_t *port;
+   struct iface_data *idp = find_iface_data_by_name((char *)argv[1]);
+   if (idp == NULL)
+   {
+      return;
+   }
+   LPORT_t portNum = idp->lport_id;
 
    assert(IS_VALID_LPORT(portNum));
 
    port = mstp_Bridge.CistInfo.CistPortInfo[portNum];
    if(port == NULL)
    {
-      printf("CistPortInfo[%d]=NULL\n", portNum);
+      ds_put_format(ds,"CistPortInfo[%d]=NULL\n", portNum);
    }
    else
    {
@@ -999,145 +1072,145 @@ mstp_showCistPortInfo(LPORT_t portNum)
       MSTP_CIST_MSG_TIMES_t             m_tms;
       MSTP_CIST_BRIDGE_TIMES_t          b_tms;
 
-      printf("SM Timers     : ");
-      printf("fdWhile=%d ", port->fdWhile);
-      printf("rrWhile=%d ", port->rrWhile);
-      printf("rbWhile=%d ", port->rbWhile);
-      printf("tcWhile=%d ", port->tcWhile);
-      printf("rcvdInfoWhile=%d\n", port->rcvdInfoWhile);
+      ds_put_format(ds,"SM Timers     : ");
+      ds_put_format(ds,"fdWhile=%d ", port->fdWhile);
+      ds_put_format(ds,"rrWhile=%d ", port->rrWhile);
+      ds_put_format(ds,"rbWhile=%d ", port->rbWhile);
+      ds_put_format(ds,"tcWhile=%d ", port->tcWhile);
+      ds_put_format(ds,"rcvdInfoWhile=%d\n", port->rcvdInfoWhile);
 
-      printf("Perf Params   : ");
+      ds_put_format(ds,"Perf Params   : ");
       {
          char buf[11];
 
          if(port->InternalPortPathCost == 0)
             strcpy(buf, "Auto");
-         printf("InternalPortPathCost=%s, useCfgPathCost=%c\n",
+         ds_put_format(ds,"InternalPortPathCost=%s, useCfgPathCost=%c\n",
                 buf, port->useCfgPathCost ? 'T' : 'F');
       }
 
-      printf("Per-Port Vars :\n");
-      printf("   portId=(%d;%d) ",
+      ds_put_format(ds,"Per-Port Vars :\n");
+      ds_put_format(ds,"   portId=(%d;%d) ",
              MSTP_GET_PORT_PRIORITY(port->portId),
              MSTP_GET_PORT_NUM(port->portId));
-      printf("infoIs=%s ", MSTP_INFO_IS_s[port->infoIs]);
-      printf("rcvdInfo=%s\n", MSTP_RCVD_INFO_s[port->rcvdInfo]);
-      printf("   role=%s ", MSTP_PORT_ROLE_s[port->role]);
-      printf("selectedRole=%s\n", MSTP_PORT_ROLE_s[port->selectedRole]);
+      ds_put_format(ds,"infoIs=%s ", MSTP_INFO_IS_s[port->infoIs]);
+      ds_put_format(ds,"rcvdInfo=%s\n", MSTP_RCVD_INFO_s[port->rcvdInfo]);
+      ds_put_format(ds,"   role=%s ", MSTP_PORT_ROLE_s[port->role]);
+      ds_put_format(ds,"selectedRole=%s\n", MSTP_PORT_ROLE_s[port->selectedRole]);
 
       /*------------------------------------------------------------------
        * cistDesignatedTimes
        *------------------------------------------------------------------*/
-      printf("   cistDesignatedTimes=");
+      ds_put_format(ds,"   cistDesignatedTimes=");
       b_tms = port->designatedTimes;
-      printf("{fwdDelay=%d maxAge=%d messageAge=%d hops=%d}\n",
+      ds_put_format(ds,"{fwdDelay=%d maxAge=%d messageAge=%d hops=%d}\n",
              b_tms.fwdDelay,b_tms.maxAge,b_tms.messageAge,b_tms.hops);
 
       /*------------------------------------------------------------------
        * cistMsgTimes
        *------------------------------------------------------------------*/
-      printf("   cistMsgTimes       =");
+      ds_put_format(ds,"   cistMsgTimes       =");
       m_tms = port->msgTimes;
-      printf("{fwdDelay=%d maxAge=%d messageAge=%d hops=%d helloTime=%d}\n",
+      ds_put_format(ds,"{fwdDelay=%d maxAge=%d messageAge=%d hops=%d helloTime=%d}\n",
              m_tms.fwdDelay,m_tms.maxAge,m_tms.messageAge,
              m_tms.hops,m_tms.helloTime);
 
       /*------------------------------------------------------------------
        * cistPortTimes
        *------------------------------------------------------------------*/
-      printf("   cistPortTimes      =");
+      ds_put_format(ds,"   cistPortTimes      =");
       m_tms = port->portTimes;
-      printf("{fwdDelay=%d maxAge=%d messageAge=%d hops=%d helloTime=%d}\n",
+      ds_put_format(ds,"{fwdDelay=%d maxAge=%d messageAge=%d hops=%d helloTime=%d}\n",
              m_tms.fwdDelay,m_tms.maxAge,m_tms.messageAge,
              m_tms.hops, m_tms.helloTime);
 
       /*------------------------------------------------------------------
        * cistDesignatedPriority
        *------------------------------------------------------------------*/
-      printf("   cistDesignatedPriority=\n");
+      ds_put_format(ds,"   cistDesignatedPriority=\n");
       pri_vec = port->designatedPriority;
-      printf("      {rootID     =");
+      ds_put_format(ds,"      {rootID     =");
       bid     = pri_vec.rootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("extRootPathCost=%d :\n",pri_vec.extRootPathCost);
-      printf("       rgnRootID  =");
+      ds_put_format(ds,"extRootPathCost=%d :\n",pri_vec.extRootPathCost);
+      ds_put_format(ds,"       rgnRootID  =");
       bid     = pri_vec.rgnRootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("intRootPathCost=%d :\n",pri_vec.intRootPathCost);
-      printf("       dsnBridgeID=");
+      ds_put_format(ds,"intRootPathCost=%d :\n",pri_vec.intRootPathCost);
+      ds_put_format(ds,"       dsnBridgeID=");
       bid     = pri_vec.dsnBridgeID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("dsnPortID=(%d;%d)}\n",
+      ds_put_format(ds,"dsnPortID=(%d;%d)}\n",
              MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
              MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
 
       /*------------------------------------------------------------------
        * cistMsgPriority
        *------------------------------------------------------------------*/
-      printf("   cistMsgPriority=\n");
+      ds_put_format(ds,"   cistMsgPriority=\n");
       pri_vec = port->msgPriority;
-      printf("      {rootID     =");
+      ds_put_format(ds,"      {rootID     =");
       bid     = pri_vec.rootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("extRootPathCost=%d :\n",pri_vec.extRootPathCost);
-      printf("       rgnRootID  =");
+      ds_put_format(ds,"extRootPathCost=%d :\n",pri_vec.extRootPathCost);
+      ds_put_format(ds,"       rgnRootID  =");
       bid     = pri_vec.rgnRootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("intRootPathCost=%d :\n",pri_vec.intRootPathCost);
-      printf("       dsnBridgeID=");
+      ds_put_format(ds,"intRootPathCost=%d :\n",pri_vec.intRootPathCost);
+      ds_put_format(ds,"       dsnBridgeID=");
       bid     = pri_vec.dsnBridgeID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("dsnPortID=(%d;%d)}\n",
+      ds_put_format(ds,"dsnPortID=(%d;%d)}\n",
              MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
              MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
 
       /*------------------------------------------------------------------
        * cistPortPriority
        *------------------------------------------------------------------*/
-      printf("   cistPortPriority=\n");
+      ds_put_format(ds,"   cistPortPriority=\n");
       pri_vec = port->portPriority;
-      printf("      {rootID     =");
+      ds_put_format(ds,"      {rootID     =");
       bid     = pri_vec.rootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("extRootPathCost=%d\n",pri_vec.extRootPathCost);
-      printf("       rgnRootID  =");
+      ds_put_format(ds,"extRootPathCost=%d\n",pri_vec.extRootPathCost);
+      ds_put_format(ds,"       rgnRootID  =");
       bid     = pri_vec.rgnRootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("intRootPathCost=%d\n",pri_vec.intRootPathCost);
-      printf("       dsnBridgeID=");
+      ds_put_format(ds,"intRootPathCost=%d\n",pri_vec.intRootPathCost);
+      ds_put_format(ds,"       dsnBridgeID=");
       bid     = pri_vec.dsnBridgeID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("dsnPortID=(%d;%d)}\n",
+      ds_put_format(ds,"dsnPortID=(%d;%d)}\n",
              MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
              MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
-      printf("Flags    : "
+      ds_put_format(ds,"Flags    : "
              "FWD=%d FWDI=%d LRN=%d  LRNI=%d  PRPSD=%d PRPSI=%d RROOT=%d "
              "RSELT=%d  SELTD=%d\n"
              "           "
@@ -1162,7 +1235,7 @@ mstp_showCistPortInfo(LPORT_t portNum)
              MSTP_CIST_PORT_IS_BIT_SET(port->bitMap,MSTP_CIST_PORT_RCVD_MSG),
              MSTP_CIST_PORT_IS_BIT_SET(port->bitMap,
                                                 MSTP_CIST_PORT_CHANGED_MASTER));
-      printf("SM states: PIM=%-13s PRT=%-12s PST=%-10s TCM=%-12s\n",
+      ds_put_format(ds,"SM states: PIM=%-13s PRT=%-12s PST=%-10s TCM=%-12s\n",
              MSTP_PIM_STATE_s[port->pimState],
              MSTP_PRT_STATE_s[port->prtState],
              MSTP_PST_STATE_s[port->pstState],
@@ -1172,7 +1245,7 @@ mstp_showCistPortInfo(LPORT_t portNum)
 }
 
 /**PROC+**********************************************************************
- * Name:      mstp_showMstiPortInfo
+ * Name:      mstpd_daemon_msti_port_unixctl_list
  *
  * Purpose:   Show status/statistics information for the given port
  *            on the given MSTI
@@ -1184,11 +1257,43 @@ mstp_showCistPortInfo(LPORT_t portNum)
  *
  * Globals:   none
  **PROC-**********************************************************************/
-static void
-mstp_showMstiPortInfo(MSTID_t mstid, LPORT_t portNum)
+
+void mstpd_daemon_msti_port_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
 {
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_msti_port_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstpd_daemon_msti_port_data_dump
+ *
+ * Purpose:   Show status/statistics information for the given port
+ *            on the given MSTI
+ *
+ * Params:    mstid   -> MST Instance Identifier
+ *            portNum -> logical port number
+ *
+ * Returns:   none
+ *
+ * Globals:   none
+ **PROC-**********************************************************************/
+void
+mstpd_daemon_msti_port_data_dump(struct ds *ds, int argc, const char *argv[])
+{
+   MSTID_t mstid = atoi(argv[1]);
+   LPORT_t portNum = 0;
    MSTP_MSTI_INFO_t      *mstiPtr;
    MSTP_MSTI_PORT_INFO_t *port;
+   struct iface_data *idp = find_iface_data_by_name((char *)argv[2]);
+   if (idp == NULL)
+   {
+      return;
+   }
+   portNum = idp->lport_id;
 
    assert(MSTP_VALID_MSTID(mstid));
    assert(IS_VALID_LPORT(portNum));
@@ -1196,14 +1301,14 @@ mstp_showMstiPortInfo(MSTID_t mstid, LPORT_t portNum)
    mstiPtr = mstp_Bridge.MstiInfo[mstid];
    if(mstiPtr == NULL)
    {
-      printf("MST Instance %d does not exist\n", mstid);
+      ds_put_format(ds,"MST Instance %d does not exist\n", mstid);
       return;
    }
 
    port = mstiPtr->MstiPortInfo[portNum];
    if(port == NULL)
    {
-      printf("MstiPortInfo[%d]=NULL\n", portNum);
+      ds_put_format(ds,"MstiPortInfo[%d]=NULL\n", portNum);
    }
    else
    {
@@ -1211,115 +1316,115 @@ mstp_showMstiPortInfo(MSTID_t mstid, LPORT_t portNum)
       MSTP_MSTI_DESIGNATED_PRI_VECTOR_t pri_vec;
       MSTP_MSTI_BRIDGE_TIMES_t          b_tms;
 
-      printf("\n");
-      printf("SM Timers     : ");
-      printf("fdWhile=%d ", port->fdWhile);
-      printf("rrWhile=%d ", port->rrWhile);
-      printf("rbWhile=%d ", port->rbWhile);
-      printf("tcWhile=%d ", port->tcWhile);
-      printf("rcvdInfoWhile=%d\n", port->rcvdInfoWhile);
+      ds_put_format(ds,"\n");
+      ds_put_format(ds,"SM Timers     : ");
+      ds_put_format(ds,"fdWhile=%d ", port->fdWhile);
+      ds_put_format(ds,"rrWhile=%d ", port->rrWhile);
+      ds_put_format(ds,"rbWhile=%d ", port->rbWhile);
+      ds_put_format(ds,"tcWhile=%d ", port->tcWhile);
+      ds_put_format(ds,"rcvdInfoWhile=%d\n", port->rcvdInfoWhile);
 
-      printf("Perf Params   : ");
+      ds_put_format(ds,"Perf Params   : ");
 
-      printf("InternalPortPathCost=%d, useCfgPathCost=%c\n",
+      ds_put_format(ds,"InternalPortPathCost=%d, useCfgPathCost=%c\n",
              port->InternalPortPathCost, port->useCfgPathCost ? 'T' : 'F');
 
-      printf("Per-Port Vars :\n");
-      printf("   portId=(%d;%d) ",
+      ds_put_format(ds,"Per-Port Vars :\n");
+      ds_put_format(ds,"   portId=(%d;%d) ",
              MSTP_GET_PORT_PRIORITY(port->portId),
              MSTP_GET_PORT_NUM(port->portId));
-      printf("infoIs=%s ", MSTP_INFO_IS_s[port->infoIs]);
-      printf("rcvdInfo=%s\n", MSTP_RCVD_INFO_s[port->rcvdInfo]);
-      printf("   role=%s ", MSTP_PORT_ROLE_s[port->role]);
-      printf("selectedRole=%s\n", MSTP_PORT_ROLE_s[port->selectedRole]);
+      ds_put_format(ds,"infoIs=%s ", MSTP_INFO_IS_s[port->infoIs]);
+      ds_put_format(ds,"rcvdInfo=%s\n", MSTP_RCVD_INFO_s[port->rcvdInfo]);
+      ds_put_format(ds,"   role=%s ", MSTP_PORT_ROLE_s[port->role]);
+      ds_put_format(ds,"selectedRole=%s\n", MSTP_PORT_ROLE_s[port->selectedRole]);
 
       /*------------------------------------------------------------------
        * mstiDesignatedTimes
        *------------------------------------------------------------------*/
-      printf("   mstiDesignatedTimes=");
+      ds_put_format(ds,"   mstiDesignatedTimes=");
       b_tms = port->designatedTimes;
-      printf("{hops=%d}\n", b_tms.hops);
+      ds_put_format(ds,"{hops=%d}\n", b_tms.hops);
 
       /*------------------------------------------------------------------
        * mstiMsgTimes
        *------------------------------------------------------------------*/
-      printf("   mstiMsgTimes       =");
+      ds_put_format(ds,"   mstiMsgTimes       =");
       b_tms = port->msgTimes;
-      printf("{hops=%d}\n", b_tms.hops);
+      ds_put_format(ds,"{hops=%d}\n", b_tms.hops);
 
       /*------------------------------------------------------------------
        * mstiPortTimes
        *------------------------------------------------------------------*/
-      printf("   mstiPortTimes      =");
+      ds_put_format(ds,"   mstiPortTimes      =");
       b_tms = port->portTimes;
-      printf("{hops=%d}\n", b_tms.hops);
+      ds_put_format(ds,"{hops=%d}\n", b_tms.hops);
 
       /*------------------------------------------------------------------
        * mstiDesignatedPriority
        *------------------------------------------------------------------*/
-      printf("   mstiDesignatedPriority=\n");
+      ds_put_format(ds,"   mstiDesignatedPriority=\n");
       pri_vec = port->designatedPriority;
-      printf("      {rgnRootID  =");
+      ds_put_format(ds,"      {rgnRootID  =");
       bid     = pri_vec.rgnRootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("intRootPathCost=%d :\n",pri_vec.intRootPathCost);
-      printf("       dsnBridgeID=");
+      ds_put_format(ds,"intRootPathCost=%d :\n",pri_vec.intRootPathCost);
+      ds_put_format(ds,"       dsnBridgeID=");
       bid     = pri_vec.dsnBridgeID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("dsnPortID=(%d;%d)}\n",
+      ds_put_format(ds,"dsnPortID=(%d;%d)}\n",
              MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
              MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
 
       /*------------------------------------------------------------------
        * mstiMsgPriority
        *------------------------------------------------------------------*/
-      printf("   mstiMsgPriority=\n");
+      ds_put_format(ds,"   mstiMsgPriority=\n");
       pri_vec = port->msgPriority;
-      printf("      {rgnRootID  =");
+      ds_put_format(ds,"      {rgnRootID  =");
       bid     = pri_vec.rgnRootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("intRootPathCost=%d :\n",pri_vec.intRootPathCost);
-      printf("       dsnBridgeID=");
+      ds_put_format(ds,"intRootPathCost=%d :\n",pri_vec.intRootPathCost);
+      ds_put_format(ds,"       dsnBridgeID=");
       bid     = pri_vec.dsnBridgeID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("dsnPortID=(%d;%d)}\n",
+      ds_put_format(ds,"dsnPortID=(%d;%d)}\n",
              MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
              MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
 
       /*------------------------------------------------------------------
        * mstiPortPriority
        *------------------------------------------------------------------*/
-      printf("   mstiPortPriority=\n");
+      ds_put_format(ds,"   mstiPortPriority=\n");
       pri_vec = port->portPriority;
-      printf("      {rgnRootID  =");
+      ds_put_format(ds,"      {rgnRootID  =");
       bid     = pri_vec.rgnRootID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d) : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("intRootPathCost=%d :\n",pri_vec.intRootPathCost);
-      printf("       dsnBridgeID=");
+      ds_put_format(ds,"intRootPathCost=%d :\n",pri_vec.intRootPathCost);
+      ds_put_format(ds,"       dsnBridgeID=");
       bid     = pri_vec.dsnBridgeID;
-      printf("(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
+      ds_put_format(ds,"(%02x:%02x:%02x:%02x:%02x:%02x;%d;%d} : ",
              PRINT_MAC_ADDR(bid.mac_address),
              MSTP_GET_BRIDGE_PRIORITY(bid),
              MSTP_GET_BRIDGE_SYS_ID(bid));
-      printf("dsnPortID=(%d;%d)}\n",
+      ds_put_format(ds,"dsnPortID=(%d;%d)}\n",
              MSTP_GET_PORT_PRIORITY(pri_vec.dsnPortID),
              MSTP_GET_PORT_NUM(pri_vec.dsnPortID));
-      printf("Flags    : "
+      ds_put_format(ds,"Flags    : "
              "FWD=%d FWDI=%d LRN=%d  LRNI=%d  PRPSD=%d PRPSI=%d RROOT=%d"
              " RSELT=%d SELTD=%d\n"
              "           AGR=%d AGRD=%d SYNC=%d SYNCD=%d TCPRP=%d UPDT=%d"
@@ -1344,19 +1449,20 @@ mstp_showMstiPortInfo(MSTID_t mstid, LPORT_t portNum)
              MSTP_MSTI_PORT_IS_BIT_SET(port->bitMap,MSTP_MSTI_PORT_RCVD_MSG),
              MSTP_MSTI_PORT_IS_BIT_SET(port->bitMap,MSTP_MSTI_PORT_MASTER),
              MSTP_MSTI_PORT_IS_BIT_SET(port->bitMap,MSTP_MSTI_PORT_MASTERED));
-      printf("SM states: PIM=%-13s PRT=%-12s PST=%-10s TCM=%-12s\n",
+      ds_put_format(ds,"SM states: PIM=%-13s PRT=%-12s PST=%-10s TCM=%-12s\n",
              MSTP_PIM_STATE_s[port->pimState],
              MSTP_PRT_STATE_s[port->prtState],
              MSTP_PST_STATE_s[port->pstState],
              MSTP_TCM_STATE_s[port->tcmState]);
 
-      printf("\n");
+      ds_put_format(ds,"\n");
 
    }
 }
 
+
 /**PROC+**********************************************************************
- * Name:      mstp_showCommPortInfo
+ * Name:      mstpd_daemon_comm_port_unixctl_list
  *
  * Purpose:   Show status/statistics information for the given port
  *            that is common for the CIST and all MSTIs
@@ -1367,9 +1473,33 @@ mstp_showMstiPortInfo(MSTID_t mstid, LPORT_t portNum)
  *
  * Globals:   mstp_Bridge
  **PROC-**********************************************************************/
-static void
-mstp_showCommPortInfo(LPORT_t portNum)
+
+void mstpd_daemon_comm_port_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
 {
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_comm_port_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstpd_daemon_comm_port_data_dump
+ *
+ * Purpose:   Show status/statistics information for the given port
+ *            that is common for the CIST and all MSTIs
+ *
+ * Params:    portNum -> logical port number
+ *
+ * Returns:   none
+ *
+ * Globals:   mstp_Bridge
+ **PROC-**********************************************************************/
+void
+mstpd_daemon_comm_port_data_dump(struct ds *ds, int argc, const char *argv[])
+{
+   LPORT_t portNum = atoi(argv[1]);
    MSTP_COMM_PORT_INFO_t *port;
 
    assert(IS_VALID_LPORT(portNum));
@@ -1377,13 +1507,13 @@ mstp_showCommPortInfo(LPORT_t portNum)
    port = mstp_Bridge.PortInfo[portNum];
    if(port == NULL)
    {
-      printf("PortInfo[%d]=NULL\n", portNum);
+      ds_put_format(ds,"PortInfo[%d]=NULL\n", portNum);
    }
    else
    {
 
-      printf("\n");
-      printf("SM Timers     : mdelayWhile=%d helloWhen=%d\n",
+      ds_put_format(ds,"\n");
+      ds_put_format(ds,"SM Timers     : mdelayWhile=%d helloWhen=%d\n",
              port->mdelayWhile, port->helloWhen);
 
       {
@@ -1391,17 +1521,17 @@ mstp_showCommPortInfo(LPORT_t portNum)
 
          if(port->ExternalPortPathCost == 0)
             strcpy(buf, "Auto");
-         printf("Perf Params   : HelloTime=%d, ExternalPortPathCost=%s\n",
+         ds_put_format(ds,"Perf Params   : HelloTime=%d, ExternalPortPathCost=%s\n",
                 port->HelloTime, buf);
-         printf("                useGlobalHelloTime=%d, useCfgPathCost=%c\n",
+         ds_put_format(ds,"                useGlobalHelloTime=%d, useCfgPathCost=%c\n",
                 port->useGlobalHelloTime, port->useCfgPathCost ? 'T' : 'F');
       }
 
-      printf("Per-Port Vars : txCount=%d, adminPointToPointMAC=%s\n",
+      ds_put_format(ds,"Per-Port Vars : txCount=%d, adminPointToPointMAC=%s\n",
              port->txCount,
              MSTP_ADMIN_PPMAC_s[port->adminPointToPointMAC]);
 
-      printf("Flags         : "
+      ds_put_format(ds,"Flags         : "
              "ENABLED=%d      RESTRICT_ROLE=%d RESTRICT_TCN=%d\n"
              "                "
              "ADMIN_EDGE=%d   AUTO_EDGE=%d     OPER_EDGE=%d     OPER_PPM=%d\n"
@@ -1435,7 +1565,7 @@ mstp_showCommPortInfo(LPORT_t portNum)
              MSTP_COMM_PORT_IS_BIT_SET(port->bitMap,MSTP_PORT_MCHECK),
              MSTP_COMM_PORT_IS_BIT_SET(port->bitMap,MSTP_PORT_FDB_FLUSH));
 
-      printf("Per-Port SMs  : PTI=%-10s PRX=%-7s PTX=%-11s PPM=%-13s\n"
+      ds_put_format(ds,"Per-Port SMs  : PTI=%-10s PRX=%-7s PTX=%-11s PPM=%-13s\n"
              "                BDM=%-9s\n",
              MSTP_PTI_STATE_s[port->ptiState],
              MSTP_PRX_STATE_s[port->prxState],
@@ -1443,17 +1573,17 @@ mstp_showCommPortInfo(LPORT_t portNum)
              MSTP_PPM_STATE_s[port->ppmState],
              MSTP_BDM_STATE_s[port->bdmState]);
 
-      printf("rcvdSelfSentPkt : %s\n", port->rcvdSelfSentPkt ? "Yes" : "No");
+      ds_put_format(ds,"rcvdSelfSentPkt : %s\n", port->rcvdSelfSentPkt ? "Yes" : "No");
 
-      printf("BPDU Filter     : %s\n",
+      ds_put_format(ds,"BPDU Filter     : %s\n",
              (MSTP_COMM_IS_BPDU_FILTER(portNum) ? "Yes" : "No"));
-      printf("BPDU Protection : %s\n",
+      ds_put_format(ds,"BPDU Protection : %s\n",
              (MSTP_COMM_PORT_IS_BPDU_PROTECTED(portNum) ? "Yes" : "No"));
-      printf("inBpduError     : %s\n", port->inBpduError ? "Yes" : "No");
-      printf("inBpduError     : %s\n", port->inBpduError ? "Yes" : "No");
-      printf("Errant BPDUs    : %d\n", MSTP_COMM_ERRANT_BPDU_COUNT(portNum));
-      printf("dropBPDUs       : %s\n", port->dropBpdu ? "Yes" : "No" );
-      printf("\n");
+      ds_put_format(ds,"inBpduError     : %s\n", port->inBpduError ? "Yes" : "No");
+      ds_put_format(ds,"inBpduError     : %s\n", port->inBpduError ? "Yes" : "No");
+      ds_put_format(ds,"Errant BPDUs    : %d\n", MSTP_COMM_ERRANT_BPDU_COUNT(portNum));
+      ds_put_format(ds,"dropBPDUs       : %s\n", port->dropBpdu ? "Yes" : "No" );
+      ds_put_format(ds,"\n");
 
    }
 }

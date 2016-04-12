@@ -219,7 +219,7 @@ mstp_initStateMachines(void)
     * variable that is being used later during initialization of the PRS SMs
     * to set appropriate value to the 'selectedRole'.
     *------------------------------------------------------------------------*/
-   VLOG_INFO("%s : MSTP PIM SM initialized", __FUNCTION__);
+   VLOG_DBG("%s : MSTP PIM SM initialized", __FUNCTION__);
    for(lport = 1 ; lport <= MAX_LPORTS ; lport++)
    {
       commPortPtr = MSTP_COMM_PORT_PTR(lport);
@@ -244,7 +244,7 @@ mstp_initStateMachines(void)
     * variable that is being used later during initialization of the PRT SMs
     * to set appropriate value to the Port's 'role' variable.
     *------------------------------------------------------------------------*/
-   VLOG_INFO("%s : MSTP PRS SM initialized", __FUNCTION__);
+   VLOG_DBG("%s : MSTP PRS SM initialized", __FUNCTION__);
    mstp_prsSm(MSTP_CISTID);
    for(mstid = MSTP_MSTID_MIN; mstid <= MSTP_MSTID_MAX; mstid++)
    {
@@ -257,7 +257,7 @@ mstp_initStateMachines(void)
    /*------------------------------------------------------------------------
     * Initialize other per-Port per-Bridge and per-Port per-Tree SMs
     *------------------------------------------------------------------------*/
-   VLOG_INFO("%s : MSTP PPM SM initializing", __FUNCTION__);
+   VLOG_DBG("%s : MSTP PPM SM initializing", __FUNCTION__);
    for(lport = 1 ; lport <= MAX_LPORTS ; lport++)
    {
       commPortPtr = MSTP_COMM_PORT_PTR(lport);
@@ -266,25 +266,25 @@ mstp_initStateMachines(void)
          /*------------------------------------------------------------------
           * per-Port per-Bridge SMs
           *------------------------------------------------------------------*/
-         VLOG_INFO("%s : MSTP PPM SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP PPM SM initialized", __FUNCTION__);
          mstp_ppmSm(lport);
-         VLOG_INFO("%s : MSTP BDM SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP BDM SM initialized", __FUNCTION__);
          mstp_bdmSm(lport);
-         VLOG_INFO("%s : MSTP PRX SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP PRX SM initialized", __FUNCTION__);
          mstp_prxSm(NULL, lport);
-         VLOG_INFO("%s : MSTP PTX SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP PTX SM initialized", __FUNCTION__);
          mstp_ptxSm(lport);
-         VLOG_INFO("%s : MSTP PTI SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP PTI SM initialized", __FUNCTION__);
          mstp_ptiSm(lport);
 
          /*------------------------------------------------------------------
           * per-Port per-Tree (the CIST or an MSTI) SMs
           *------------------------------------------------------------------*/
-         VLOG_INFO("%s : MSTP PRT SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP PRT SM initialized", __FUNCTION__);
          mstp_prtSm(MSTP_CISTID, lport);
-         VLOG_INFO("%s : MSTP PST SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP PST SM initialized", __FUNCTION__);
          mstp_pstSm(MSTP_CISTID, lport);
-         VLOG_INFO("%s : MSTP TCM SM initialized", __FUNCTION__);
+         VLOG_DBG("%s : MSTP TCM SM initialized", __FUNCTION__);
          mstp_tcmSm(MSTP_CISTID, lport);
 
          for(mstid = MSTP_MSTID_MIN; mstid <= MSTP_MSTID_MAX; mstid++)

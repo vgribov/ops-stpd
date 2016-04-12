@@ -20,10 +20,10 @@
 #include <assert.h>
 #include "mstp_fsm.h"
 
-extern void storeShortInPacket(uint16_t *packetPtr, uint16_t value);
-extern void storeLongInPacket(uint32_t *packetPtr, uint32_t value);
+void storeShortInPacket(uint16_t *packetPtr, uint16_t value);
+void storeLongInPacket(uint32_t *packetPtr, uint32_t value);
 
-extern uint8_t bit_count_table[256];
+uint8_t bit_count_table[256];
 
 /* Conversion needed on this CPU */
 #define ipctohll(x) ((uint64_t)((((x) & 0x00000000000000ff) << 56) | \
@@ -58,17 +58,17 @@ extern uint8_t bit_count_table[256];
 #define __CLZ32(x) __builtin_clz(x)
 #define __FFS32(x) __builtin_ffs(x)
 
-extern int sw_ffs(uint32_t bitmask);
-extern int fls(uint32_t bitmask);
-extern void setBit(uint32_t *map, uint32_t bit, uint32_t maxBits);
-extern void clrBit(uint32_t *map, uint32_t bit, uint32_t maxBits);
+int sw_ffs(uint32_t bitmask);
+int fls(uint32_t bitmask);
+void setBit(uint32_t *map, uint32_t bit, uint32_t maxBits);
+void clrBit(uint32_t *map, uint32_t bit, uint32_t maxBits);
 
-extern int printBitMap(const uint32_t *map, int maxBits);
-extern int printByteArrayBitMap(const uint8_t *map, int maxBits);
-extern int print_vlan_map(const VLAN_MAP *map);
-extern int print_vid_map(const VID_MAP *map);
+int printBitMap(const uint32_t *map, int maxBits);
+int printByteArrayBitMap(const uint8_t *map, int maxBits);
+int print_vlan_map(const VLAN_MAP *map);
+int print_vid_map(const VID_MAP *map);
 
-extern uint8_t bit_count_table[256];
+uint8_t bit_count_table[256];
 
 /* Bit map operations
  * Notes:
@@ -79,42 +79,42 @@ extern uint8_t bit_count_table[256];
  */
 
 /************ set bit in bitmap *************/
-extern
+
 void setiBitInSmallBitmap(uint32_t *map, uint32_t bit, uint32_t maxBits);
 
-extern
+
 void setBit(uint32_t *map, uint32_t bit, uint32_t maxBits);
 
 
 
-extern
+
 void setBitInByteArray(uint8_t *map, uint32_t bit, uint32_t maxBits);
 /************ clear bit in bitmap *************/
 
-extern
+
 void clrBitInSmallBitmap(uint32_t *map, uint32_t bit, uint32_t maxBits);
 
-extern
+
 void clrBit(uint32_t *map, uint32_t bit, uint32_t maxBits);
 
-extern
+
 void clrBitInByteArray(uint8_t *map, uint32_t bit, uint32_t maxBits);
 
-extern
+
 int ones8(uint8_t x);
 
 /************ find first bit in bitmap *************/
-extern
+
 int findFirstBitSetInSmallBitmap(const uint32_t *map, uint32_t maxBits);
 
 
-extern
+
 int findFirstBitSet(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 int findFirstBitClr(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 int findFirstBitClrInByteArray(const uint8_t *map, uint32_t maxBits);
 
 /************ find next bit in bitmap *************
@@ -122,91 +122,91 @@ int findFirstBitClrInByteArray(const uint8_t *map, uint32_t maxBits);
  * Bits start at 1.  A prevBit of 0 is equivalent
  * to using findFirstBitSet()
  */
-extern
+
 int findNextBitSetInSmallBitmap(const uint32_t *map, uint32_t prevBit,
                                 uint32_t maxBits);
-extern
+
 int findNextBitSet(const uint32_t *map, uint32_t prevBit, uint32_t maxBits);
 
-extern
+
 int findNextBitClr(const uint32_t *map, uint32_t prevBit, uint32_t maxBits);
 
-extern
+
 int findFirstBitSetInByteArrayBitmap(const uint8_t *map, uint32_t maxBits);
 
-extern
+
 int findNextBitSetInByteArrayBitmap(const uint8_t *map, int prevBit,
                                     uint32_t maxBits);
 /************ check bit set in bitmap *************/
-extern
+
 bool isBitSetInSmallBitmap(const uint32_t *map, uint32_t bit,
                               uint32_t maxBits);
-extern
+
 bool isBitSet(const uint32_t *map, uint32_t bit, uint32_t maxBits);
 
-extern
+
 bool isBitSet64(const uint64_t *map, uint32_t bit, uint32_t maxBits);
 
-extern
+
 bool isBitSetInByteArrayBitmap(const uint8_t *map, uint32_t bit,
                                   uint32_t maxBits);
-extern
+
 void clearSmallBitmap(uint32_t *map, uint32_t maxBits);
 
-extern
+
 void clearBitmap(uint32_t *map, uint32_t maxBits);
 
-extern
+
 void clearByteArrayBitmap(uint8_t *map, uint32_t maxBits);
 
 /************ set bitmap *************/
-extern
+
 void setSmallBitmap(uint32_t *map, uint32_t maxBits);
 
-extern
+
 void setBitmap(uint32_t *map, uint32_t maxBits);
 
-extern
+
 uint32_t bitReverse (register uint32_t x);
 
-extern
+
 void bitOrBitmaps(const uint32_t *fromMap, uint32_t *toMap, uint32_t maxBits);
 
 
-extern
+
 void bitOrByteArrayBitmaps(const uint8_t *fromMap, uint8_t *toMap,
                            uint32_t maxBits);
 /************ bit AND bitmap *************/
-extern
+
 void bitAndSmallBitmaps(const uint32_t *fromMap, uint32_t *toMap,
                         uint32_t maxBits);
-extern
+
 void bitAndBitmaps(const uint32_t *fromMap, uint32_t *toMap,
                    uint32_t maxBits);
 
-extern
+
 void bitAndByteArrayBitmaps(const uint8_t *fromMap, uint8_t *toMap,
                             uint32_t maxBits);
 /* Determine if two bitmaps overlap, similar to bitAndBitmaps but more
  * efficient */
-extern
+
 bool bitmapsOverlap(const uint32_t *map1, const uint32_t *map2,
       uint32_t maxBits);
-extern
+
 void bitInverseSmallBitmap(uint32_t *map, uint32_t maxBits);
-extern
+
 void bitInverseBitmap(uint32_t *map, uint32_t maxBits);
 
-extern
+
 void bitInverseByteArrayBitmap(uint8_t *map, uint32_t maxBits);
 /************ bit XOR bitmap *************/
-extern
+
 void bitXorSmallBitmaps(const uint32_t *fromMap, uint32_t *toMap,
                         uint32_t maxBits);
-extern
+
 void bitXorBitmaps(const uint32_t *fromMap, uint32_t *toMap, uint32_t maxBits);
 
-extern
+
 void bitXorByteArrayBitmaps(const uint8_t *fromMap, uint8_t *toMap,
                             uint32_t maxBits);
 /************ bit SUB bitmap *************/
@@ -216,65 +216,65 @@ void bitXorByteArrayBitmaps(const uint8_t *fromMap, uint8_t *toMap,
  * Note that unlike the operations above, this one is not commutative.
  */
 
-extern
+
 void bitSubSmallBitmaps(const uint32_t *fromMap, uint32_t *toMap,
                         uint32_t maxBits);
-extern
+
 void bitSubBitmaps(const uint32_t *fromMap, uint32_t *toMap, uint32_t maxBits);
 
-extern
+
 void bitSubByteArrayBitmaps(const uint8_t *fromMap, uint8_t *toMap,
                             uint32_t maxBits);
 /************ are any bits set in bitmap *************/
-extern
+
 bool areAnyBitsSetInSmallBitmap(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 bool areAnyBitsSetInBitmap(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 uint32_t getNumOfBitsSetInSmallBitmap(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 uint32_t getNumOfBitsSetInBitmap(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 uint32_t getNumOfBitsSetInByteArrayBitmap(const uint8_t *map, uint32_t maxBits);
 
-extern
+
 bool areAnyBitsSetInByteArrayBitmap(const uint8_t *map, uint32_t maxBits);
 
 /************ are bitmaps equal *************/
-extern
+
 bool areSmallBitmapsEqual(const uint32_t *map1, const uint32_t *map2,
                              uint32_t maxBits);
 
-extern
+
 bool areBitmapsEqual(const uint32_t *map1, const uint32_t *map2,
                         uint32_t maxBits);
 
-extern
+
 bool areByteArrayBitmapsEqual(const uint8_t *map1, const uint8_t *map2,
                                  uint32_t maxBits);
 /************ are all bits set *************/
-extern
+
 bool areAllBitsSetInSmallBitmap(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 bool areAllBitsSetInBitmap(const uint32_t *map, uint32_t maxBits);
 
-extern
+
 bool areAllBitsSetInByteArrayBitmap(const uint8_t *map, uint32_t maxBits);
 
 /************ copy bitmap *************/
-extern
+
 void copySmallBitmap(const uint32_t *fromMap, uint32_t *toMap,
                      uint32_t maxBits);
 
-extern
+
 void copyBitmap(const uint32_t *fromMap, uint32_t *toMap, uint32_t maxBits);
 
-extern
+
 void copyByteArrayBitmap(const uint8_t *fromMap, uint8_t *toMap,
                          uint32_t maxBits);
 #ifndef PC
@@ -282,26 +282,26 @@ void copyByteArrayBitmap(const uint8_t *fromMap, uint8_t *toMap,
  * special routines to use when copying a bitMap into a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void htoipcCopySmallBitmap(const uint32_t *fromMap, uint32_t *toMap,
                            uint32_t maxBits);
-extern
+
 void htoipcCopyBitmap(const uint32_t *fromMap, uint32_t *toMap, uint32_t maxBits);
 
-extern
+
 void htoipcCopyByteArrayBitmap(const uint8_t *fromMap, uint8_t *toMap,
                                uint32_t maxBits);
 /*
  * special routines to use when copying a bitMap from a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void ipctohCopySmallBitmap(const uint32_t *fromMap, uint32_t *toMap,
                            uint32_t maxBits);
-extern
+
 void ipctohCopyBitmap(const uint32_t *fromMap, uint32_t *toMap, uint32_t maxBits);
 
-extern
+
 void ipctohCopyByteArrayBitmap(const uint8_t *fromMap, uint8_t *toMap,
                                uint32_t maxBits);
 
@@ -315,49 +315,49 @@ void ipctohCopyByteArrayBitmap(const uint8_t *fromMap, uint8_t *toMap,
  *   Note: since vlanMaps are not used as much as portMaps, we do optimize
  *         for switches that support less then 32 vlans
  ****************************************************************************/
-extern
+
 void set_vlan(VLAN_MAP *map, uint32_t vlan);
 
-extern
+
 void clear_vlan(VLAN_MAP *map, uint32_t vlan);
 
-extern
+
 VID_t find_first_vlan_set(const VLAN_MAP *map);
 
-extern
+
 VID_t find_next_vlan(const VLAN_MAP *map, uint32_t prevVlan);
 
-extern
+
 bool is_vlan_set(const VLAN_MAP *map, uint32_t vlan);
 
-extern
+
 void clear_vlan_map(VLAN_MAP *map);
 
-extern
+
 uint32_t count_vlans(const VLAN_MAP *map);
 
-extern
+
 void bit_or_vlan_maps(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 
-extern
+
 void bit_and_vlan_maps(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 
-extern
+
 void bit_xor_vlan_maps(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 
-extern
+
 void bit_sub_vlan_maps(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 
-extern
+
 void bit_inverse_vlan_map(VLAN_MAP *map);
 
-extern
+
 bool are_any_vlans_set(const VLAN_MAP *map);
 
-extern
+
 bool are_vlanmaps_equal(const VLAN_MAP *vlanMap1, const VLAN_MAP *vlanMap2);
 
-extern
+
 void copy_vlan_map(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 
 #ifndef PC
@@ -365,13 +365,13 @@ void copy_vlan_map(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
  * special routine to use when copying a vlan_map into a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void htoipc_copy_vlan_map(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 /*
  * special routine to use when copying a vlan_map from a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void ipctoh_copy_vlan_map(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
 #endif /* PC */
 
@@ -382,63 +382,63 @@ void ipctoh_copy_vlan_map(const VLAN_MAP *fromMap, VLAN_MAP *toMap);
  *   Used for setting and clearing vlan identifiers in vlan id bitmaps
  *
  ****************************************************************************/
-extern
+
 void set_vid(VID_MAP *map, uint32_t vid);
 
-extern
+
 void clear_vid(VID_MAP *map, uint32_t vid);
 
-extern
+
 VID_t find_first_vid_set(const VID_MAP *map);
 
-extern
+
 VID_t find_next_vid(const VID_MAP *map, uint32_t prevVid);
 
-extern
+
 bool is_vid_set(const VID_MAP *map, uint32_t vid);
 
-extern
+
 void clear_vid_map(VID_MAP *map);
 
-extern
+
 uint32_t count_vids(const VID_MAP *map);
 
-extern
+
 void bit_or_vid_maps(const VID_MAP *fromMap, VID_MAP *toMap);
 
-extern
+
 void bit_and_vid_maps(const VID_MAP *fromMap, VID_MAP *toMap);
 
-extern
+
 void bit_xor_vid_maps(const VID_MAP *fromMap, VID_MAP *toMap);
 
-extern
+
 void bit_sub_vid_maps(const VID_MAP *fromMap, VID_MAP *toMap);
-extern
+
 bool vid_maps_overlap(const VID_MAP *map1, const VID_MAP *map2);
 
-extern
+
 void bit_inverse_vid_map(VID_MAP *map);
 
-extern
+
 bool are_any_vids_set(const VID_MAP *map);
 
-extern
+
 bool are_vidmaps_equal(const VID_MAP *vidMap1, const VID_MAP *vidMap2);
 
-extern
+
 void copy_vid_map(const VID_MAP *fromMap, VID_MAP *toMap);
 /*
  * special routine to use when copying a vid_map into a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void htoipc_copy_vid_map(const VID_MAP *fromMap, VID_MAP *toMap);
 /*
  * special routine to use when copying a vid_map from a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void ipctoh_copy_vid_map(const VID_MAP *fromMap, VID_MAP *toMap);
 
 /******************************************************************************
@@ -461,33 +461,33 @@ void ipctoh_copy_vid_map(const VID_MAP *fromMap, VID_MAP *toMap);
  *    } MY_MAP_DATATYPE_t;
  *
  *****************************************************************************/
-extern void setFieldInBitArray(uint8_t *map, int field, int fieldValue,
+void setFieldInBitArray(uint8_t *map, int field, int fieldValue,
                                int fieldSize, int maxFields);
-extern void clearAllFieldsInBitArray(uint8_t *map,
+void clearAllFieldsInBitArray(uint8_t *map,
                                      int fieldSize, int maxFields);
-extern void copyAllFieldsInBitArray(const uint8_t *fromMap, uint8_t *toMap,
+void copyAllFieldsInBitArray(const uint8_t *fromMap, uint8_t *toMap,
                                     int fieldSize, int maxFields);
-extern void printAllFieldsInBitArray(const uint8_t *map,
+void printAllFieldsInBitArray(const uint8_t *map,
                                      int fieldSize, int maxFields);
 
-extern
+
 bool areBitArraysEqual(const uint8_t *map1, const uint8_t *map2,
                        int fieldSize, int maxFields);
-extern
+
 void setFieldInBitmap(uint32_t *map,
                       int field, int fieldValue, int fieldSize, int maxFields);
-extern
+
 int getFieldFromBitArray(const uint8_t *map, int field, int fieldSize, int maxFields);
-extern
+
 int getFieldFromBitmap(const uint32_t *map, int field, int fieldSize, int maxFields);
 
-extern int sw_ffs(uint32_t bitmask);
+int sw_ffs(uint32_t bitmask);
 
-extern int ffc(uint32_t bitmask);
-extern int ffsll(uint64_t bitmask);
-extern int fls(uint32_t bitmask);
-extern void setbit(uint32_t *bitmask, int offset);
-extern void clrbit(uint32_t *bitmask, int offset);
+int ffc(uint32_t bitmask);
+int ffsll(uint64_t bitmask);
+int fls(uint32_t bitmask);
+void setbit(uint32_t *bitmask, int offset);
+void clrbit(uint32_t *bitmask, int offset);
 
 /* The following defines map the legacy name to new names. They are deprecated
    for new usage. */
@@ -510,59 +510,59 @@ extern void clrbit(uint32_t *bitmask, int offset);
 #define get_num_of_ports_set(map) PortMap_getNumOfPortsSet((map))
 
 /* Externs from PortMap.c */
-extern int PortMap_print(const PORT_MAP *map);
-extern int PortMap_printWithCommas(const PORT_MAP *map);
+int PortMap_print(const PORT_MAP *map);
+int PortMap_printWithCommas(const PORT_MAP *map);
 
-extern
+
 uint32_t PortMap_getNumOfPortsSet(const PORT_MAP *map);
 
-extern
+
 void PortMap_setPort(PORT_MAP *map, PORT_t port);
 
-extern
+
 void PortMap_clearPort(PORT_MAP *map, PORT_t port);
 
-extern
+
 PORT_t PortMap_findFirstPortSet(const PORT_MAP *map);
 
-extern
+
 PORT_t PortMap_findNextPortSet(const PORT_MAP *map, PORT_t prevPort);
 
 
-extern
+
 bool PortMap_isPortSet(const PORT_MAP *map, PORT_t port);
 
-extern
+
 int find_first_port_set(const PORT_MAP *map);
 
-extern
+
 int find_next_port_set(const PORT_MAP *map, int prevPort);
 
-extern
+
 void PortMap_clear(PORT_MAP *map);
 
-extern
+
 void PortMap_bitOrPortMaps(const PORT_MAP *fromMap, PORT_MAP *toMap);
 
-extern
+
 void PortMap_bitAndPortMaps(const PORT_MAP *fromMap, PORT_MAP *toMap);
 
-extern
+
 void PortMap_bitXorPortMaps(const PORT_MAP *fromMap, PORT_MAP *toMap);
 
-extern
+
 void PortMap_bitSubPortMaps(const PORT_MAP *fromMap, PORT_MAP *toMap);
 
-extern
+
 void PortMap_bitInversePortMap(PORT_MAP *map);
 
-extern
+
 bool PortMap_areAnyPortsSet(const PORT_MAP *map);
 
-extern
+
 bool PortMap_arePortMapsEqual(const PORT_MAP *portMap1, const PORT_MAP *portMap2);
 
-extern
+
 void PortMap_copy(const PORT_MAP *fromMap, PORT_MAP *toMap);
 
 #ifndef PC
@@ -570,14 +570,14 @@ void PortMap_copy(const PORT_MAP *fromMap, PORT_MAP *toMap);
  * special routine to use when copying a port_map into a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void PortMap_htoipcCopy(const PORT_MAP *fromMap, PORT_MAP *toMap);
 
 /*
  * special routine to use when copying a port_map from a msg or namespace item
  * that may be used on another processor
  */
-extern
+
 void PortMap_ipctohCopy(const PORT_MAP *fromMap, PORT_MAP *toMap);
 #endif /* PC */
 
