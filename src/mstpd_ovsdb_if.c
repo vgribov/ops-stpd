@@ -136,7 +136,6 @@ struct port_data {
  *
  *********************************/
 #define BITS_PER_BYTE           8
-#define MAX_ENTRIES_IN_POOL     256
 
 #define IS_AVAILABLE(a, idx)  ((a[idx/BITS_PER_BYTE] & (1 << (idx % BITS_PER_BYTE))) == 0)
 
@@ -151,10 +150,10 @@ static void free_index(unsigned char *pool, int idx);
 
 POOL(port_index, MAX_ENTRIES_IN_POOL);
 
-struct iface_data *idp_lookup[MAX_ENTRIES_IN_POOL];
-struct mstp_cist_port_config *cist_port_lookup[MAX_ENTRIES_IN_POOL];
-struct mstp_msti_config *msti_lookup[MSTP_INSTANCES_MAX];
-struct mstp_msti_port_config *msti_port_lookup[MSTP_INSTANCES_MAX][MAX_ENTRIES_IN_POOL];
+struct iface_data *idp_lookup[MAX_ENTRIES_IN_POOL+1];
+struct mstp_cist_port_config *cist_port_lookup[MAX_ENTRIES_IN_POOL+1];
+struct mstp_msti_config *msti_lookup[MSTP_INSTANCES_MAX+1];
+struct mstp_msti_port_config *msti_port_lookup[MSTP_INSTANCES_MAX+1][MAX_ENTRIES_IN_POOL+1];
 
 /**********************************************************************
  * Pool implementation: this is diferrent from the LAG pool manager.
@@ -1164,12 +1163,12 @@ static int update_l2port_cache(void)
                     int j = 0;
                     free(cist_port_lookup[lport]);
                     cist_port_lookup[lport] = NULL;
-                    for(j = 1; i <= MSTP_INSTANCES_MAX; j++)
+                    for(j = 1; j <= MSTP_INSTANCES_MAX; j++)
                     {
                         if (msti_port_lookup[j][lport])
                         {
                             free(msti_port_lookup[j][lport]);
-                            msti_port_lookup[j][lport] = 0;
+                            msti_port_lookup[j][lport] = NULL;
                         }
                     }
                     send_l2port_delete_msg(lport);
@@ -1724,6 +1723,10 @@ int mstp_cist_port_config_update(void) {
         if(cist_port_row)
         {
             uint32_t lport = 0;
+            if (!cist_port_row->port)
+            {
+                continue;
+            }
             idp = find_iface_data_by_name(cist_port_row->port->name);
             if(!idp)
             {
@@ -1983,6 +1986,10 @@ int mstp_msti_port_update_config(void)
             {
                 int lport = 0;
                 mstp_inst_port = mstp_inst->mstp_instance_ports[j];
+                if (!mstp_inst_port->port)
+                {
+                    continue;
+                }
                 idp = find_iface_data_by_name(mstp_inst_port->port->name);
                 if(!idp)
                 {
@@ -3047,6 +3054,10 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
     }
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row,idl)
     {
+        if(!cist_port_row->port && operation == e_mstpd_lport_delete)
+        {
+            break;
+        }
         if(strcmp(cist_port_row->port->name,name)== 0)
         {
             break;
@@ -3122,7 +3133,7 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         }
 
         for (i = 0,j = 0; i < cist_row->n_mstp_common_instance_ports; i++) {
-            if(strcmp(cist_row->mstp_common_instance_ports[i]->port->name,name) != 0)
+            if(cist_row->mstp_common_instance_ports[i]->port && strcmp(cist_row->mstp_common_instance_ports[i]->port->name,name) != 0)
             {
                 cist_port_info[j++] = cist_row->mstp_common_instance_ports[i];
             }
@@ -3169,6 +3180,11 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
         msti_row = bridge_row->value_mstp_instances[i];
         for (j = 0; j < msti_row->n_mstp_instance_ports; j++)
         {
+            if (!msti_row->mstp_instance_ports[i]->port && operation == e_mstpd_lport_delete)
+            {
+                msti_port_row = msti_row->mstp_instance_ports[i];
+                break;
+            }
             if (strcmp(msti_row->mstp_instance_ports[i]->port->name,name) == 0)
             {
                 msti_port_row = msti_row->mstp_instance_ports[i];
@@ -3237,7 +3253,7 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             }
 
             for (k = 0,j =0; k < msti_row->n_mstp_instance_ports; k++) {
-                if(strcmp(msti_row->mstp_instance_ports[i]->port->name,name) != 0)
+                if(msti_row->mstp_instance_ports[i]->port && strcmp(msti_row->mstp_instance_ports[i]->port->name,name) != 0)
                 {
                     msti_port_info[j++] = msti_row->mstp_instance_ports[k];
                 }

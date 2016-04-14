@@ -552,7 +552,15 @@ mstp_instance_add_del_ports(const struct stp_blk_params *br,
     /* Collect all Instance Ports present in the DB. */
     shash_init(&sh_idl_ports);
     for (i = 0; i < msti->cfg.msti_cfg->n_mstp_instance_ports; i++) {
-        const char *name = msti->cfg.msti_cfg->mstp_instance_ports[i]->port->name;
+        const struct ovsrec_port *pcfg = NULL;
+        const char *name = NULL;
+
+        pcfg = msti->cfg.msti_cfg->mstp_instance_ports[i]->port;
+        if (!pcfg) {
+            continue;
+        } else {
+            name = pcfg->name;
+        }
         if (!shash_add_once(&sh_idl_ports, name,
                             msti->cfg.msti_cfg->mstp_instance_ports[i])) {
             VLOG_WARN("mstp instance id %d: %s specified twice as msti port",
@@ -569,6 +577,8 @@ mstp_instance_add_del_ports(const struct stp_blk_params *br,
             VLOG_DBG("Found a deleted Port %s in instance %d",
                      inst_port->name, msti->instance_id);
             mstp_cist_and_instance_port_delete(br, msti, inst_port);
+        } else {
+            inst_port->cfg.msti_port_cfg = port_cfg;
         }
     }
 
@@ -601,7 +611,7 @@ mstp_instance_create(const struct stp_blk_params *br, int inst_id,
                          const struct ovsrec_mstp_instance *msti_cfg)
 {
     struct mstp_instance *msti;
-    int stg;
+    int stg = 0;
     char inst_id_string[INSTANCE_STRING_LEN] = "";
     struct asic_plugin_interface *p_asic_interface = NULL;
 
@@ -614,12 +624,6 @@ mstp_instance_create(const struct stp_blk_params *br, int inst_id,
 
     if (false == MSTP_INST_VALID(inst_id)) {
         VLOG_DBG("%s: invalid instance id %d", __FUNCTION__, inst_id);
-        return;
-    }
-
-    p_asic_interface = get_asic_plugin_interface();
-    if(!p_asic_interface) {
-        VLOG_ERR("%s: unable to find asic plugin interface",__FUNCTION__);
         return;
     }
 
@@ -637,7 +641,13 @@ mstp_instance_create(const struct stp_blk_params *br, int inst_id,
     snprintf(inst_id_string, sizeof(inst_id_string), "mist%d", inst_id);
     hmap_insert(&all_mstp_instances, &msti->node, hash_string(inst_id_string, 0));
 
-    p_asic_interface->create_stg(&stg);
+    p_asic_interface = get_asic_plugin_interface();
+    if(p_asic_interface) {
+        p_asic_interface->create_stg(&stg);
+    } else {
+        VLOG_ERR("%s: unable to find asic plugin interface",__FUNCTION__);
+        /* free fall let create STG  sw entry */
+    }
 
     msti->hw_stg_id = stg;
     msti->nb_vlans = 0;
@@ -670,12 +680,6 @@ mstp_instance_delete(const struct stp_blk_params* br,
 
     VLOG_DBG("%s: inst %d", __FUNCTION__, msti->instance_id);
 
-    p_asic_interface = get_asic_plugin_interface();
-    if(!p_asic_interface) {
-        VLOG_ERR("%s: unable to find asic plugin interface",__FUNCTION__);
-        return;
-    }
-
     if (msti) {
         hmap_remove(&all_mstp_instances, &msti->node);
         hmap_destroy(&msti->vlans);
@@ -683,6 +687,11 @@ mstp_instance_delete(const struct stp_blk_params* br,
         free(msti);
 
         VLOG_DBG("%s: delete stg %d", __FUNCTION__, msti->hw_stg_id);
+        p_asic_interface = get_asic_plugin_interface();
+        if (!p_asic_interface) {
+            VLOG_ERR("%s: unable to find asic plugin interface",__FUNCTION__);
+            return;
+        }
         p_asic_interface->delete_stg(msti->hw_stg_id);
     }
 
@@ -722,6 +731,7 @@ mstp_instance_update(struct stp_blk_params *br_blk_params,
     /* Check for changes in the vlan row entries. */
     /* check if any vlans added or deleted */
     mstp_instance_add_del_vlans(br_blk_params, msti);
+    mstp_instance_add_del_ports(br_blk_params, msti);
 
     /* Check for changes in the port row entries. */
     HMAP_FOR_EACH (inst_port, hmap_node, &msti->ports) {
@@ -936,8 +946,15 @@ mstp_cist_configure_ports(const struct stp_blk_params *br,
     /* Collect all Instance Ports present in the DB. */
     shash_init(&sh_idl_ports);
     for (i = 0; i < msti->cfg.cist_cfg->n_mstp_common_instance_ports; i++) {
-        const char *name =
-                    msti->cfg.cist_cfg->mstp_common_instance_ports[i]->port->name;
+        const struct ovsrec_port *pcfg = NULL;
+        const char *name = NULL;
+
+        pcfg = msti->cfg.cist_cfg->mstp_common_instance_ports[i]->port;
+        if (!pcfg) {
+            continue;
+        } else {
+            name = pcfg->name;
+        }
         if (!shash_add_once(&sh_idl_ports, name,
                           msti->cfg.cist_cfg->mstp_common_instance_ports[i])) {
             VLOG_WARN("instance id %d: %s specified twice as CIST Port",
@@ -953,6 +970,8 @@ mstp_cist_configure_ports(const struct stp_blk_params *br,
         if (!port_cfg) {
             VLOG_DBG("Found a deleted Port %s in CIST", inst_port->name);
             mstp_cist_and_instance_port_delete(br, msti, inst_port);
+        } else {
+            inst_port->cfg.cist_port_cfg = port_cfg;
         }
     }
 
@@ -1133,13 +1152,12 @@ mstp_cist_update(const struct stp_blk_params *br)
 
     msti = mstp_cist_and_instance_lookup(MSTP_CIST);
     if (!msti) {
-        const struct ovsrec_mstp_common_instance *msti_cist_cfg =
-                                                br->cfg->mstp_common_instance;
         VLOG_DBG("%s:Creating CIST", __FUNCTION__);
         mstp_cist_create(br, msti_cist_cfg);
         return;
     }
     else {
+        msti->cfg.cist_cfg = msti_cist_cfg;
         /* update  CIST vlans and ports */
         /* check if any vlans added or deleted */
         mstp_cist_add_del_vlans(br, msti);
@@ -1177,6 +1195,99 @@ mstp_update_instances(struct stp_blk_params* br_blk_param)
         }
     }
 }
+/*-----------------------------------------------------------------------------
+| Function:  stp_reconfigure
+| Description: checks for vlans,ports added/deleted/updated in msti/cist
+| Parameters[in]: blk params :-object contains idl, ofproro, bridge cfg
+| Parameters[out]: None
+| Return: True:- if any stp row/column modified
+-----------------------------------------------------------------------------*/
+bool
+stp_plugin_need_propagate_change(struct blk_params* br_blk_param)
+{
+    struct ovsdb_idl *idl;
+    unsigned int idl_seqno;
+    const struct ovsrec_mstp_instance *mstp_row = NULL;
+    const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
+    const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
+    const struct ovsrec_mstp_common_instance *cist_row = NULL;
+    bool cist_row_created = false, cist_row_updated = false,
+         mist_row_created = false, mist_row_updated = false,
+         mist_row_deleted = false, cist_port_row_updated = false,
+         mist_port_row_updated = false, br_mstp_inst_updated = false,
+         propagate_change = false;
+
+    if(!br_blk_param || !br_blk_param->idl) {
+        VLOG_DBG("%s: invalid blk param object", __FUNCTION__);
+        return false;
+    }
+    VLOG_DBG("%s: entry", __FUNCTION__);
+
+    /* Get idl and idl_seqno to work with */
+    idl = br_blk_param->idl;
+    idl_seqno = br_blk_param->idl_seqno;
+
+    cist_row = ovsrec_mstp_common_instance_first(idl);
+    if (cist_row) {
+        cist_row_created = OVSREC_IDL_ANY_TABLE_ROWS_INSERTED(cist_row,
+                                                              idl_seqno);
+        cist_row_updated = OVSREC_IDL_ANY_TABLE_ROWS_MODIFIED(cist_row,
+                                                              idl_seqno);
+    } else {
+        cist_row_created = false;
+        cist_row_updated = false;
+    }
+
+    mstp_row = ovsrec_mstp_instance_first(idl);
+    if (mstp_row) {
+        mist_row_created = OVSREC_IDL_ANY_TABLE_ROWS_INSERTED(mstp_row,
+                                                              idl_seqno);
+        mist_row_updated = OVSREC_IDL_ANY_TABLE_ROWS_MODIFIED(mstp_row,
+                                                              idl_seqno);
+        mist_row_deleted = OVSREC_IDL_ANY_TABLE_ROWS_DELETED(mstp_row,
+                                                             idl_seqno);
+    } else {
+        mist_row_created = false;
+        mist_row_updated = false;
+        mist_row_deleted = false;
+    }
+
+    cist_port = ovsrec_mstp_common_instance_port_first(idl);
+    if (cist_port) {
+        cist_port_row_updated = OVSREC_IDL_ANY_TABLE_ROWS_MODIFIED(cist_port,
+                                                                   idl_seqno);
+    } else {
+        cist_port_row_updated = false;
+    }
+
+    mstp_port_row = ovsrec_mstp_instance_port_first(idl);
+    if (mstp_port_row) {
+        mist_port_row_updated = OVSREC_IDL_ANY_TABLE_ROWS_MODIFIED(mstp_port_row,
+                                                                   idl_seqno);
+    } else {
+        mist_port_row_updated = false;
+    }
+
+    if (OVSREC_IDL_IS_COLUMN_MODIFIED(ovsrec_bridge_col_mstp_instances, idl_seqno)) {
+        br_mstp_inst_updated = true;
+    } else {
+        br_mstp_inst_updated = false;
+    }
+
+    if (cist_row_created || cist_row_updated || cist_port_row_updated ||
+        mist_row_created || mist_row_updated || mist_row_deleted ||
+        mist_port_row_updated || br_mstp_inst_updated) {
+        VLOG_DBG("%s:cc %d cu %d cpu %d mc %d mu %d md %d mpu %d bmu %d", __FUNCTION__,
+                  cist_row_created, cist_row_updated, cist_port_row_updated,
+                  mist_row_created, mist_row_updated, mist_row_deleted,
+                  mist_port_row_updated, br_mstp_inst_updated);
+        propagate_change = true;
+    } else {
+        propagate_change = false;
+    }
+
+    return propagate_change;
+}
 
 /*-----------------------------------------------------------------------------
 | Function:  stp_reconfigure
@@ -1195,6 +1306,11 @@ stp_reconfigure(struct blk_params* br_blk_param)
         return;
     }
     VLOG_DBG("%s: entry", __FUNCTION__);
+
+    if (!stp_plugin_need_propagate_change(br_blk_param)) {
+        VLOG_DBG("%s: propagate_change false", __FUNCTION__);
+        return;
+    }
 
     blk_param.idl = br_blk_param->idl;
     blk_param.cfg = ovsrec_bridge_first(br_blk_param->idl);

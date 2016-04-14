@@ -48,6 +48,7 @@ typedef uint16_t TYP_LEN;
 typedef uint8_t OCTET;
 
 #define MAX_LPORTS 256
+#define MAX_ENTRIES_IN_POOL MAX_LPORTS
 #define MAX_VLAN_ID 4095
 #define MIN_VLAN_ID 1
 #define Q_NULL NULL
