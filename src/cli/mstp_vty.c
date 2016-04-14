@@ -439,13 +439,12 @@ mstp_show_common_instance_port_info(
  */
 static int
 mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
-                   const struct ovsrec_bridge *bridge_row,
-                   const struct ovsrec_mstp_instance *mstp_row) {
+                   int64_t inst_id, const struct ovsrec_mstp_instance *mstp_row) {
     const struct ovsrec_system *system_row = NULL;
     const struct ovsrec_mstp_instance_port *mstp_port = NULL;
-    int j = 0, i = 0;
+    int j = 0;
 
-    if (!(cist_row && bridge_row)) {
+    if (!cist_row) {
         VLOG_DBG("Invalid arguments for mstp_show_instance_info %s: %d\n",
                 __FILE__, __LINE__);
         return e_vtysh_error;
@@ -458,7 +457,7 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     }
 
     vty_out(vty, "%s%s%ld%s%s  ", VTY_NEWLINE, "#### MST",
-            bridge_row->key_mstp_instances[i], VTY_NEWLINE, "Vlans mapped:");
+           inst_id, VTY_NEWLINE, "Vlans mapped:");
     if (mstp_row->vlans) {
         vty_out(vty, "%ld", mstp_row->vlans[0]->id);
         for (j=1; j<mstp_row->n_vlans; j++) {
@@ -658,7 +657,7 @@ cli_show_mst(int inst_id, bool detail_flag) {
         }
 
         /* Display MST instance data specific for specific instanceID */
-        mstp_show_instance_info(cist_row, bridge_row, mstp_row);
+        mstp_show_instance_info(cist_row, inst_id, mstp_row);
     }
 
     /* Display MST instance data for all instance including CIST*/
@@ -674,7 +673,7 @@ cli_show_mst(int inst_id, bool detail_flag) {
                 return e_vtysh_error;
             }
             vty_out(vty, "%s", VTY_NEWLINE);
-            mstp_show_instance_info(cist_row, bridge_row, mstp_row);
+            mstp_show_instance_info(cist_row, bridge_row->key_mstp_instances[i], mstp_row);
         }
     }
 
@@ -1432,8 +1431,7 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
         /* Check if the vlan is already mapped to another instance */
         mstp_old_inst_id =
             mstp_util_get_mstid_for_vlanID(vlan_row->id, bridge_row);
-        if ((mstp_old_inst_id != MSTP_INVALID_ID) &&
-                (mstp_old_inst_id != instid)) {
+        if (mstp_old_inst_id != MSTP_INVALID_ID) {
             vty_out(vty, "This VLAN is already mapped to %ld instance%s",
                         mstp_old_inst_id, VTY_NEWLINE);
             ABORT_DB_TXN(txn, "NO Record found");
@@ -2219,12 +2217,11 @@ DEFUN(show_running_config_mstp,
       show_running_config_mstp_cmd,
       "show running-config spanning-tree",
       SHOW_STR
-      "Show the switch running configuration.\n"
+      "Current running configuration\n"
       SPAN_TREE) {
     cli_show_mstp_running_config();
     return CMD_SUCCESS;
 }
-
 DEFUN(show_spanning_mst,
       show_spanning_mst_cmd,
       "show spanning-tree mst {detail}",
