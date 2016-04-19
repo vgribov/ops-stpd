@@ -22,6 +22,7 @@
 
 struct ovsdb_idl *idl;
 bool exiting;
+void util_mstp_status_statistics_clean();
 #define FULL_DUPLEX 1
 #define HALF_DUPLEX 2
 pthread_mutex_t ovsdb_mutex;
