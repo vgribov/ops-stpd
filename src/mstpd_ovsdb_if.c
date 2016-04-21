@@ -1208,7 +1208,6 @@ add_new_vlan(struct shash_node *sh_node)
         new_vlan->vlan_id = vlan_row->id;
         new_vlan->name = xstrdup(vlan_row->name);
         send_vlan_add_msg(new_vlan->vlan_id);
-
         VLOG_DBG("Created local data for VLAN %d", (int)vlan_row->id);
     }
 } /* add_new_vlan */
@@ -3233,6 +3232,7 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    struct iface_data *idp = NULL;
     struct ovsrec_mstp_common_instance_port **cist_port_info = NULL, *cist_port_add = NULL;
     int64_t cist_hello_time = DEF_HELLO_TIME;
     int64_t cist_port_priority = DEF_MSTP_PORT_PRIORITY;
@@ -3251,6 +3251,13 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
     txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
     cist_row = ovsrec_mstp_common_instance_first(idl);
+    idp = find_iface_data_by_name(name);
+    if (!idp)
+    {
+        ovsdb_idl_txn_destroy(txn);
+        MSTP_OVSDB_UNLOCK;
+        return;
+    }
     if (strcmp(name,DEFAULT_BRIDGE_NAME) == 0)
     {
         ovsdb_idl_txn_destroy(txn);
@@ -3287,8 +3294,15 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         }
         ovsrec_mstp_common_instance_port_set_port( cist_port_add,
                 bridge_row->ports[i]);
-        ovsrec_mstp_common_instance_port_set_port_state( cist_port_add,
-                MSTP_STATE_BLOCK);
+        if (idp->link_state == INTERFACE_LINK_STATE_DOWN) {
+            ovsrec_mstp_common_instance_port_set_port_state( cist_port_add,
+                    MSTP_STATE_BLOCK);
+        }
+        else
+        {
+            ovsrec_mstp_common_instance_port_set_port_state( cist_port_add,
+                    MSTP_STATE_FORWARD);
+        }
         ovsrec_mstp_common_instance_port_set_port_role( cist_port_add,
                 MSTP_ROLE_DISABLE);
         ovsrec_mstp_common_instance_port_set_admin_path_cost( cist_port_add,
@@ -3368,12 +3382,20 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_mstp_instance_port *msti_port_row = NULL;
     struct ovsrec_mstp_instance_port **msti_port_info = NULL, *msti_port_add = NULL;
+    struct iface_data *idp = NULL;
     int64_t cist_port_priority = DEF_MSTP_PORT_PRIORITY;
     int64_t admin_path_cost = 0;
     int i = 0, j= 0, k = 0;
     MSTP_OVSDB_LOCK;
     txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
+    idp = find_iface_data_by_name(name);
+    if (!idp)
+    {
+        ovsdb_idl_txn_destroy(txn);
+        MSTP_OVSDB_UNLOCK;
+        return;
+    }
     if (strcmp(name,DEFAULT_BRIDGE_NAME) == 0)
     {
         ovsdb_idl_txn_destroy(txn);
@@ -3422,8 +3444,15 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             /* FILL the default values for CIST_port entry */
             ovsrec_mstp_instance_port_set_port( msti_port_add,
                     bridge_row->ports[k]);
-            ovsrec_mstp_instance_port_set_port_state( msti_port_add,
-                    MSTP_STATE_BLOCK);
+            if (idp->link_state == INTERFACE_LINK_STATE_DOWN) {
+                ovsrec_mstp_instance_port_set_port_state( msti_port_add,
+                        MSTP_STATE_BLOCK);
+            }
+            else
+            {
+                ovsrec_mstp_instance_port_set_port_state( msti_port_add,
+                        MSTP_STATE_FORWARD);
+            }
             ovsrec_mstp_instance_port_set_port_role( msti_port_add,
                     MSTP_ROLE_DISABLE);
             ovsrec_mstp_instance_port_set_admin_path_cost( msti_port_add,
