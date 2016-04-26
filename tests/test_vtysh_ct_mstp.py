@@ -464,7 +464,7 @@ def MSTPCliTest(**kwargs):
     retStructure = device1.DeviceInteract(command="exit")
     retStructure = device1.DeviceInteract(command="show running-config spanning-tree")
     cmdOut = retStructure.get('buffer')
-    assert 'spanning-tree instance 1 cost' not in cmdOut, "Case:35 Test to reset cost failed"
+    assert 'spanning-tree instance 1 cost 200000' not in cmdOut, "Case:35 Test to reset cost failed"
     print "Case : %d -- Pass" % case_no
     case_no += 1
 
@@ -550,4 +550,4 @@ class Test_mstp_cli:
 
     def test_mstp_cli(self):
         dut01Obj = self.topoObj.deviceObjGet(device="dut01")
-        #retValue = MSTPCliTest(device1=dut01Obj)
+        retValue = MSTPCliTest(device1=dut01Obj)

@@ -147,6 +147,9 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
             VTY_NEWLINE);
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        if (!cist_port->port) {
+           continue;
+        }
         vty_out(vty, "%sPort %s %s", VTY_NEWLINE, cist_port->port->name, VTY_NEWLINE);
 
         /* TODO - Need to split in mac and priority*/
@@ -239,6 +242,9 @@ cli_show_spanning_tree_config(bool detail) {
             "------------ --------------",
             "---------- ------- ---------- ----------", VTY_NEWLINE);
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        if (!cist_port->port) {
+           continue;
+        }
         vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state, *cist_port->admin_path_cost,
@@ -376,6 +382,9 @@ mstp_show_common_instance_info(
             "---------- ---------- ---------- ----------",
             VTY_NEWLINE);
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        if (!cist_port->port) {
+            continue;
+        }
         vty_out(vty, "%-14s %-14s %-10s %-10ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state, *cist_port->admin_path_cost,
@@ -488,17 +497,20 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
             "-------------- --------------",
             "---------- ------- ---------- ----------",
             VTY_NEWLINE);
+
     for (j=0; j < mstp_row->n_mstp_instance_ports; j++) {
         mstp_port = mstp_row->mstp_instance_ports[j];
         if(!mstp_port) {
             assert(0);
             return e_vtysh_error;
         }
-        vty_out(vty, "%-14s %-14s %-10s %-7ld %-10ld %s%s",
-                mstp_port->port->name, mstp_port->port_role,
-                mstp_port->port_state,
-                (mstp_port->admin_path_cost)?*mstp_port->admin_path_cost:DEF_MSTP_COST,
-                *mstp_port->port_priority, DEF_LINK_TYPE, VTY_NEWLINE);
+        if (mstp_port->port) {
+            vty_out(vty, "%-14s %-14s %-10s %-7ld %-10ld %s%s",
+                    mstp_port->port->name, mstp_port->port_role,
+                    mstp_port->port_state,
+                    (mstp_port->admin_path_cost)?*mstp_port->admin_path_cost:DEF_MSTP_COST,
+                    *mstp_port->port_priority, DEF_LINK_TYPE, VTY_NEWLINE);
+        }
     }
     return e_vtysh_ok;
 }
@@ -551,15 +563,19 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 assert(0);
                 return e_vtysh_error;
             }
-            if (VTYSH_STR_EQ(mstp_row->mstp_instance_ports[i]->port->name,
-                                                    if_name)) {
-                mstp_port_row = mstp_row->mstp_instance_ports[i];
-                break;
+            if (mstp_row->mstp_instance_ports[i]->port) {
+                if (VTYSH_STR_EQ(mstp_row->mstp_instance_ports[i]->port->name,
+                                                         if_name)) {
+                    mstp_port_row = mstp_row->mstp_instance_ports[i];
+                    break;
+                }
             }
         }
         OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
-            if (VTYSH_STR_EQ(cist_port->port->name, if_name)) {
-                break;
+            if (cist_port->port) {
+                if (VTYSH_STR_EQ(cist_port->port->name, if_name)) {
+                     break;
+                }
             }
         }
     }
