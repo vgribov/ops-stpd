@@ -400,6 +400,7 @@ mstpd_protocol_thread(void *arg)
     pthread_detach(pthread_self());
     clear_port_map(&ports_up);
     clear_port_map(&l2ports);
+    mstp_Bridge.ForceVersion = MSTP_PROTOCOL_VERSION_ID_MST;
     mstpInitialInit();
 
     VLOG_DBG("%s : waiting for events in the main loop", __FUNCTION__);
@@ -481,7 +482,7 @@ mstpd_protocol_thread(void *arg)
             intf_get_port_name(lport,port);
             update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_add);
             update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_add);
-            //update_mstp_on_lport_add(lport);
+            update_mstp_on_lport_add(lport);
             if (mstp_enable)
             {
                 register_stp_mcast_addr(lport);
@@ -945,7 +946,7 @@ void update_mstp_cist_config(mstpd_message *pmsg)
             cist_config->priority)
     {
         MSTP_SET_BRIDGE_PRIORITY(MSTP_CIST_BRIDGE_IDENTIFIER,
-                cist_config->priority);
+                cist_config->priority * PRIORITY_MULTIPLIER);
         MSTP_DYN_RECONFIG_CHANGE = TRUE;
     }
 
@@ -1164,6 +1165,7 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
             }
         }
         MSTP_COMM_PORT_SET_BIT(commPortPtr->bitMap, MSTP_PORT_MCHECK);
+        MSTP_COMM_PORT_SET_BIT(commPortPtr->bitMap, MSTP_PORT_AUTO_EDGE);
         VLOG_DBG("PATH cost : %d",path_cost);
         bool curValue = MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
                 MSTP_PORT_ADMIN_EDGE_PORT) ? TRUE : FALSE;
@@ -1302,7 +1304,7 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
                 if(MSTP_CIST_PORT_PTR(lport))
                     MSTP_CIST_PORT_PTR(lport)->dbgCnts.errantBpduCnt = 0;
                 if(MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
-                            MSTP_PORT_PORT_ENABLED))
+                            MSTP_PORT_PORT_ENABLED) && MSTP_ENABLED)
                 {
                     /*---------------------------------------------------------
                      * Initialize port's Bridge Detect State Machine
@@ -1323,7 +1325,7 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
                 if(MSTP_CIST_PORT_PTR(lport))
                     MSTP_CIST_PORT_PTR(lport)->dbgCnts.errantBpduCnt = 0;
                 if(MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
-                            MSTP_PORT_PORT_ENABLED))
+                            MSTP_PORT_PORT_ENABLED) && MSTP_ENABLED)
                 {
                     /*---------------------------------------------------------
                      * Initialize port's Bridge Detect State Machine
@@ -2034,7 +2036,7 @@ void update_mstp_on_lport_add(int lport)
     }
     int mstid = 1;
     for (mstid = 1; mstid <= MSTP_INSTANCES_MAX; mstid++) {
-        if (MSTP_MSTI_INFO(mstid)->valid != TRUE)
+        if (!MSTP_MSTI_INFO(mstid) || MSTP_MSTI_INFO(mstid)->valid != TRUE)
         {
             continue;
         }

@@ -23,8 +23,6 @@
 struct ovsdb_idl *idl;
 bool exiting;
 void util_mstp_status_statistics_clean();
-#define FULL_DUPLEX 1
-#define HALF_DUPLEX 2
 pthread_mutex_t ovsdb_mutex;
 /* Macros to lock and unlock mutexes in a verbose manner. */
 #define MSTP_OVSDB_LOCK { \
@@ -59,8 +57,7 @@ struct iface_data {
     int                 pdu_sockfd;         /*!< Socket FD for MSTPDU rx/tx */
     bool                pdu_registered;     /*!< Indicates if port is registered to receive MSTPDU */
     enum ovsrec_interface_link_state_e link_state; /*!< operational link state */
-    enum ovsrec_interface_duplex_e duplex;  /*!< operational link duplex */
-
+    PORT_DUPLEX duplex;  /*!< operational link duplex */
 };
 
 struct mstp_cist_data {
@@ -224,7 +221,7 @@ struct iface_data *idp_lookup[MAX_ENTRIES_IN_POOL+1];
 struct mstp_cist_port_config *cist_port_lookup[MAX_ENTRIES_IN_POOL+1];
 struct mstp_msti_config *msti_lookup[MSTP_INSTANCES_MAX+1];
 struct mstp_msti_port_config *msti_port_lookup[MSTP_INSTANCES_MAX+1][MAX_ENTRIES_IN_POOL+1];
-
+PORT_MAP l2ports;
 
 void *mstpd_ovs_main_thread(void *arg);
 // Utility functions

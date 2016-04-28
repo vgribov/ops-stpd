@@ -329,6 +329,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_table(idl, &ovsrec_table_vlan);
     ovsdb_idl_add_column(idl, &ovsrec_vlan_col_id);
     ovsdb_idl_add_column(idl, &ovsrec_vlan_col_name);
+    ovsdb_idl_add_column(idl, &ovsrec_vlan_col_internal_usage);
 
 
     /* Mark the following columns write-only. */
@@ -1025,6 +1026,10 @@ update_interface_cache(void)
     /* Collect all the interfaces in the DB. */
     shash_init(&sh_idl_interfaces);
     OVSREC_INTERFACE_FOR_EACH(ifrow, idl) {
+        if (strncmp(ifrow->type,OVSREC_INTERFACE_TYPE_SYSTEM,strlen(ifrow->type))!=0)
+        {
+            continue;
+        }
         if (!shash_add_once(&sh_idl_interfaces, ifrow->name, ifrow)) {
             VLOG_DBG("interface %s specified twice", ifrow->name);
         }
@@ -1060,6 +1065,19 @@ update_interface_cache(void)
         if (OVSREC_IDL_IS_ROW_INSERTED(ifrow, idl_seqno) ||
             OVSREC_IDL_IS_ROW_MODIFIED(ifrow, idl_seqno)) {
             enum ovsrec_interface_link_state_e new_link_state;
+            PORT_DUPLEX new_duplex = HALF_DUPLEX;
+            if (ifrow->duplex) {
+                 if (!(strcmp(ifrow->duplex, OVSREC_INTERFACE_DUPLEX_FULL))) {
+                    new_duplex = FULL_DUPLEX;
+                }
+            }
+            if ((new_duplex != idp->duplex)) {
+                idp->duplex = new_duplex;
+                VLOG_DBG("Interface %s link duplex changed in DB: "
+                         " new_duplex=%s ",
+                         ifrow->name,
+                         (idp->duplex == FULL_DUPLEX ? "full" : "half"));
+            }
             new_link_state = INTERFACE_LINK_STATE_DOWN;
             if (ifrow->link_state ) {
                 if (!(strcmp(ifrow->link_state, OVSREC_INTERFACE_LINK_STATE_UP))) {
@@ -1256,11 +1274,16 @@ update_vlan_cache(void)
     struct shash sh_idl_vlans;
     const struct ovsrec_vlan *row;
     struct shash_node *sh_node, *sh_next;
+    struct smap smap = SMAP_INITIALIZER(&smap);
     int rc = 0;
 
     /* Collect all the VLANs in the DB. */
     shash_init(&sh_idl_vlans);
     OVSREC_VLAN_FOR_EACH(row, idl) {
+        if(smap_get(&row->internal_usage,"l3port") != NULL )
+        {
+            continue;
+        }
         if (!shash_add_once(&sh_idl_vlans, row->name, row)) {
             VLOG_DBG("VLAN %s (%d) specified twice", row->name, (int)row->id);
         }

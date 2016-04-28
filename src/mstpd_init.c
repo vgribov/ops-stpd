@@ -381,12 +381,6 @@ mstp_initMstiPortData(MSTID_t mstid, LPORT_t lport, bool init)
    STP_ASSERT(mstiPortPtr);
 
    /*------------------------------------------------------------------------
-    * clear (FALSE) all bits in boolean flags bit map, they will be
-    * dynamically set to the appropriate values during the run of the SMs.
-    *------------------------------------------------------------------------*/
-   memset(mstiPortPtr->bitMap, FALSE, sizeof(mstiPortPtr->bitMap));
-
-   /*------------------------------------------------------------------------
     * State Machine Timers (802.1Q-REV/D5.0 13.21), they will be dynamically
     * set to the appropriate values during the run of the SMs.
     *------------------------------------------------------------------------*/
@@ -485,12 +479,6 @@ mstp_initCistPortData(LPORT_t lport, bool init)
    STP_ASSERT(cistPortPtr);
 
    /*------------------------------------------------------------------------
-    * clear (FALSE) all bits in boolean flags bit map, they will be
-    * dynamically set to the appropriate values during the run of the SMs.
-    *------------------------------------------------------------------------*/
-   memset(cistPortPtr->bitMap, FALSE, sizeof(cistPortPtr->bitMap));
-
-   /*------------------------------------------------------------------------
     * State Machine Timers (802.1Q-REV/D5.0 13.21), they will be dynamically
     * set to the appropriate values during the run of the SMs.
     *------------------------------------------------------------------------*/
@@ -575,10 +563,6 @@ mstp_initCistPortData(LPORT_t lport, bool init)
  *
  * Constraints:
  **PROC-**********************************************************************/
-#if OPS_MSTP_TODO
-MSTP_COMM_PORT_INFO_t *
-mstp_initCommonPortData(hpSwitchStpPortEntry_t *stpCfgPortPtr, bool init)
-#endif /*OPS_MSTP_TODO*/
 MSTP_COMM_PORT_INFO_t *
 mstp_initCommonPortData(LPORT_t lport,bool init)
 {
@@ -593,7 +577,7 @@ mstp_initCommonPortData(LPORT_t lport,bool init)
     * Clear all bits in boolean flags bit map, they will be set in the
     * called below 'update' routines with the values read from config
     *---------------------------------------------------------------------*/
-   memset(commPortPtr->bitMap, FALSE, sizeof(commPortPtr->bitMap));
+   //memset(commPortPtr->bitMap, FALSE, sizeof(commPortPtr->bitMap));
 
    /*---------------------------------------------------------------------
     * Clear Per-Port Variables (802.1Q-REV/D5.0), they will be set in the
@@ -955,12 +939,6 @@ mstp_initBridgeMstiData(int mstid,bool init)
    STP_ASSERT(MSTP_VALID_MSTID(mstid));
 
    /*------------------------------------------------------------------------
-    * Reset to zero 'Priority' component of the MSTI 'Bridge Identifier'
-    *------------------------------------------------------------------------*/
-   if(MSTP_MSTI_INFO(mstid))
-      MSTP_SET_BRIDGE_PRIORITY(MSTP_MSTI_BRIDGE_IDENTIFIER(mstid), 0);
-
-   /*------------------------------------------------------------------------
     * Set 'BridgeIdentifier' for the MSTI:
     *    - priority,
     *    - sys ID,
@@ -1134,9 +1112,6 @@ mstp_initBridgeCistData(bool init)
    MAC_ADDRESS mac;
 
    STP_ASSERT(MSTP_ENABLED);
-
-   MSTP_SET_BRIDGE_PRIORITY(MSTP_CIST_BRIDGE_IDENTIFIER, 0);
-
    /*------------------------------------------------------------------------
     * Set 'BridgeIdentifier' for the CIST:
     *    - priority,

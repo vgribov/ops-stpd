@@ -337,7 +337,22 @@ mstp_instance_add_del_vlans(const struct stp_blk_params *br,
     /* Collect all Instance VLANs present in the DB. */
     shash_init(&sh_idl_vlans);
     for (i = 0; i < msti->cfg.msti_cfg->n_vlans; i++) {
-        const char *name = msti->cfg.msti_cfg->vlans[i]->name;
+        const struct ovsrec_vlan *vlan_cfg = msti->cfg.msti_cfg->vlans[i];
+        const char *name = vlan_cfg->name;
+        bool vlan_enabled = false;
+        const char *hw_cfg_enable;
+
+        // Check for hw_vlan_config:enable string changes.
+        hw_cfg_enable = smap_get(&vlan_cfg->hw_vlan_config, VLAN_HW_CONFIG_MAP_ENABLE);
+        if (hw_cfg_enable) {
+            if (!strcmp(hw_cfg_enable, VLAN_HW_CONFIG_MAP_ENABLE_TRUE)) {
+                vlan_enabled = true;
+            }
+        }
+
+        if (!vlan_enabled) {
+            continue;
+        }
         if (!shash_add_once(&sh_idl_vlans, name,
                             msti->cfg.msti_cfg->vlans[i])) {
             VLOG_WARN("%s:instance id %d: %s specified twice as msti VLAN",
@@ -1043,7 +1058,23 @@ mstp_cist_add_del_vlans(const struct stp_blk_params *br,
     /* Collect all Instance VLANs present in the DB. */
     shash_init(&sh_idl_vlans);
     for (i = 0; i < msti->cfg.cist_cfg->n_vlans; i++) {
-        const char *name = msti->cfg.cist_cfg->vlans[i]->name;
+        const struct ovsrec_vlan *vlan_cfg = msti->cfg.cist_cfg->vlans[i];
+        const char *name = vlan_cfg->name;
+        bool vlan_enabled = false;
+        const char *hw_cfg_enable;
+
+        // Check for hw_vlan_config:enable string changes.
+        hw_cfg_enable = smap_get(&vlan_cfg->hw_vlan_config, VLAN_HW_CONFIG_MAP_ENABLE);
+        if (hw_cfg_enable) {
+            if (!strcmp(hw_cfg_enable, VLAN_HW_CONFIG_MAP_ENABLE_TRUE)) {
+                vlan_enabled = true;
+            }
+        }
+
+        if (!vlan_enabled) {
+            continue;
+        }
+
         if (!shash_add_once(&sh_idl_vlans, name,
                             msti->cfg.cist_cfg->vlans[i])) {
             VLOG_WARN("%s: %s specified twice as cist VLAN",
@@ -1208,6 +1239,7 @@ stp_plugin_need_propagate_change(struct blk_params* br_blk_param)
     struct ovsdb_idl *idl;
     unsigned int idl_seqno;
     const struct ovsrec_mstp_instance *mstp_row = NULL;
+    const struct ovsrec_vlan *vlan_row = NULL;
     const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
     const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
@@ -1215,7 +1247,7 @@ stp_plugin_need_propagate_change(struct blk_params* br_blk_param)
          mist_row_created = false, mist_row_updated = false,
          mist_row_deleted = false, cist_port_row_updated = false,
          mist_port_row_updated = false, br_mstp_inst_updated = false,
-         propagate_change = false;
+         propagate_change = false, vlan_updated = false;
 
     if(!br_blk_param || !br_blk_param->idl) {
         VLOG_DBG("%s: invalid blk param object", __FUNCTION__);
@@ -1273,14 +1305,26 @@ stp_plugin_need_propagate_change(struct blk_params* br_blk_param)
     } else {
         br_mstp_inst_updated = false;
     }
+    OVSREC_VLAN_FOR_EACH(vlan_row,idl)
+    {
+        struct smap smap = SMAP_INITIALIZER(&smap);
+        if (smap_get(&vlan_row->internal_usage,"l3port"))
+        {
+            continue;
+        }
+        if (OVSREC_IDL_IS_COLUMN_MODIFIED(ovsrec_vlan_col_hw_vlan_config, idl_seqno))
+        {
+            vlan_updated = true;
+        }
+    }
 
     if (cist_row_created || cist_row_updated || cist_port_row_updated ||
         mist_row_created || mist_row_updated || mist_row_deleted ||
-        mist_port_row_updated || br_mstp_inst_updated) {
-        VLOG_DBG("%s:cc %d cu %d cpu %d mc %d mu %d md %d mpu %d bmu %d", __FUNCTION__,
+        mist_port_row_updated || br_mstp_inst_updated || vlan_updated) {
+        VLOG_DBG("%s:cc %d cu %d cpu %d mc %d mu %d md %d mpu %d bmu %d vu %d", __FUNCTION__,
                   cist_row_created, cist_row_updated, cist_port_row_updated,
                   mist_row_created, mist_row_updated, mist_row_deleted,
-                  mist_port_row_updated, br_mstp_inst_updated);
+                  mist_port_row_updated, br_mstp_inst_updated, vlan_updated);
         propagate_change = true;
     } else {
         propagate_change = false;

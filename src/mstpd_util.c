@@ -1151,8 +1151,25 @@ mstp_flush(MSTID_t mstid, LPORT_t lport)
 void
 mstp_noStpPropagatePortUpState(LPORT_t lport)
 {
+   MSTP_COMM_PORT_INFO_t *commPortPtr;
    STP_ASSERT(MSTP_ENABLED == FALSE);
    STP_ASSERT(IS_VALID_LPORT(lport));
+   commPortPtr = MSTP_COMM_PORT_PTR(lport);
+   if(!commPortPtr)
+   {
+        return;
+   }
+   commPortPtr->adminPointToPointMAC = MSTP_ADMIN_PPMAC_AUTO;
+   if(mstp_portDuplexModeDetect(lport) == FULL_DUPLEX)
+   {
+       MSTP_COMM_PORT_SET_BIT(commPortPtr->bitMap,
+               MSTP_PORT_OPER_POINT_TO_POINT_MAC);
+   }
+   else
+   {
+       MSTP_COMM_PORT_CLR_BIT(commPortPtr->bitMap,
+               MSTP_PORT_OPER_POINT_TO_POINT_MAC);
+   }
 
    mstp_updtMstiPortStateChgMsg(MSTP_NON_STP_BRIDGE, lport,
                                 MSTP_ACT_PROPAGATE_UP);
@@ -4249,7 +4266,7 @@ mstp_txTcn(LPORT_t lport)
                "port=%s", idp->name);
        STP_ASSERT(FALSE);
    }
-   pkt->pktLen = sizeof(uint32_t)+sizeof(MSTP_CFG_BPDU_t);
+   pkt->pktLen = sizeof(uint32_t)+sizeof(MSTP_TCN_BPDU_t);
    rc = sendto(idp->pdu_sockfd, pkt->data, pkt->pktLen, 0, NULL, 0);
    if (rc == -1) {
        VLOG_ERR("Failed to send MSTPDU for interface=%s, rc=%d",
@@ -4585,7 +4602,7 @@ mstp_txMstp(LPORT_t lport)
     * NOTE: Octets 26 and 27 convey the CIST Port Identifier of the
     *       transmitting Bridge Port
     *       (802.1Q-REV/D5.0 14.6 k)) */
-   storeShortInPacket(&bpdu->cistPortId, cistPortPtr->portId);
+   storeShortInPacket(&bpdu->cistPortId, cistPortPtr->portId << 8);
 
    /*------------------------------------------------------------------------
     * set CIST port role.
@@ -4633,6 +4650,7 @@ mstp_txMstp(LPORT_t lport)
 
    if(cistPortPtr->tcWhile != 0)
    {/* (tcWhile != 0), set  CIST topology change flag for the Port */
+      VLOG_DBG("MSTP tcWhile : %d port : %d", cistPortPtr->tcWhile, lport);
       bpdu->cistFlags |= MSTP_CIST_FLAG_TC;
       /* increment propagated TC flags statistics counter */
       cistPortPtr->dbgCnts.tcFlagTxCnt++;
@@ -4935,7 +4953,7 @@ mstp_txMstp(LPORT_t lport)
                "port=%s", idp->name);
        STP_ASSERT(FALSE);
    }
-   pkt->pktLen = sizeof(uint32_t)+sizeof(MSTP_CFG_BPDU_t);
+   pkt->pktLen = sizeof(uint32_t)+sizeof(MSTP_MST_BPDU_t);
    rc = sendto(idp->pdu_sockfd, pkt->data, pkt->pktLen, 0, NULL, 0);
    if (rc == -1) {
        VLOG_ERR("Failed to send MSTPDU for interface=%s, rc=%d",
@@ -5315,7 +5333,8 @@ mstp_updtRolesCist(void)
       mstp_updateCstRootHistory(cistRootPriVec.rootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rootID,
                         cistRootPriVec.rootID,TRUE,MSTP_CISTID);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rootID.mac_address[0],
+      snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rootID.priority,
+                MSTP_CISTID, cistRootPriVec.rootID.mac_address[0],
                 cistRootPriVec.rootID.mac_address[1],cistRootPriVec.rootID.mac_address[2],
                 cistRootPriVec.rootID.mac_address[3],cistRootPriVec.rootID.mac_address[4],
                 cistRootPriVec.rootID.mac_address[5]);
@@ -5333,7 +5352,8 @@ mstp_updtRolesCist(void)
       mstp_updateIstRootHistory(cistRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rgnRootID,
                         cistRootPriVec.rgnRootID,FALSE,MSTP_CISTID);
-      snprintf(regionalRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rgnRootID.mac_address[0],
+      snprintf(regionalRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rgnRootID.priority,
+                MSTP_CISTID,cistRootPriVec.rgnRootID.mac_address[0],
                 cistRootPriVec.rgnRootID.mac_address[1],cistRootPriVec.rgnRootID.mac_address[2],
                 cistRootPriVec.rgnRootID.mac_address[3],cistRootPriVec.rgnRootID.mac_address[4],
                 cistRootPriVec.rgnRootID.mac_address[5]);
@@ -5471,7 +5491,8 @@ mstp_updtRolesCist(void)
           *------------------------------------------------------------------*/
          char designatedRoot[MSTP_ROOT_ID] = {0};
          cistPortPtr->designatedPriority = MSTP_CIST_ROOT_PRIORITY;
-         snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.rootID.mac_address[0],
+         snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.rootID.priority,
+                 MSTP_CISTID,cistPortPtr->designatedPriority.rootID.mac_address[0],
                  cistPortPtr->designatedPriority.rootID.mac_address[1],cistPortPtr->designatedPriority.rootID.mac_address[2],
                  cistPortPtr->designatedPriority.rootID.mac_address[3],cistPortPtr->designatedPriority.rootID.mac_address[4],
                  cistPortPtr->designatedPriority.rootID.mac_address[5]);
@@ -5483,7 +5504,8 @@ mstp_updtRolesCist(void)
          char designatedBridge[MSTP_ROOT_ID] = {0};
          cistPortPtr->designatedPriority.dsnBridgeID =
              MSTP_CIST_BRIDGE_IDENTIFIER;
-         snprintf(designatedBridge,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
+         snprintf(designatedBridge,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.dsnBridgeID.priority,
+                 MSTP_CISTID, cistPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[1],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[3],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
@@ -5500,7 +5522,8 @@ mstp_updtRolesCist(void)
              char regionalRoot[MSTP_ROOT_ID] = {0};
              cistPortPtr->designatedPriority.rgnRootID =
                  MSTP_CIST_BRIDGE_IDENTIFIER;
-             snprintf(regionalRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.rgnRootID.mac_address[0],
+             snprintf(regionalRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x", cistPortPtr->designatedPriority.rgnRootID.priority,
+                     MSTP_CISTID, cistPortPtr->designatedPriority.rgnRootID.mac_address[0],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[1],cistPortPtr->designatedPriority.rgnRootID.mac_address[2],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[3],cistPortPtr->designatedPriority.rgnRootID.mac_address[4],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[5]);
@@ -5854,7 +5877,8 @@ mstp_updtRolesMsti(MSTID_t mstid)
       mstp_updateMstiRootHistory(mstid, mstiRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID,
                         mstiRootPriVec.rgnRootID, FALSE, mstid);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",mstiRootPriVec.rgnRootID.mac_address[0],
+      snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x", mstiRootPriVec.rgnRootID.priority,
+                mstid, mstiRootPriVec.rgnRootID.mac_address[0],
                 mstiRootPriVec.rgnRootID.mac_address[1],mstiRootPriVec.rgnRootID.mac_address[2],
                 mstiRootPriVec.rgnRootID.mac_address[3],mstiRootPriVec.rgnRootID.mac_address[4],
                 mstiRootPriVec.rgnRootID.mac_address[5]);
@@ -5982,7 +6006,8 @@ mstp_updtRolesMsti(MSTID_t mstid)
           *------------------------------------------------------------------*/
          mstiPortPtr->designatedPriority = MSTP_MSTI_ROOT_PRIORITY(mstid);
          char designatedRoot[MSTP_ROOT_ID] = {0};
-         snprintf(designatedRoot,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",mstiPortPtr->designatedPriority.rgnRootID.mac_address[0],
+         snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",mstiPortPtr->designatedPriority.rgnRootID.priority,
+                 mstid ,mstiPortPtr->designatedPriority.rgnRootID.mac_address[0],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[1],mstiPortPtr->designatedPriority.rgnRootID.mac_address[2],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[3],mstiPortPtr->designatedPriority.rgnRootID.mac_address[4],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[5]);
@@ -5996,7 +6021,8 @@ mstp_updtRolesMsti(MSTID_t mstid)
          mstiPortPtr->designatedPriority.dsnBridgeID =
                                             MSTP_MSTI_BRIDGE_IDENTIFIER(mstid);
          char designatedBridge[MSTP_ROOT_ID] = {0};
-         snprintf(designatedBridge,MSTP_ROOT_ID,"%02x:%02x:%02x:%02x:%02x:%02x",mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
+         snprintf(designatedBridge,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x", mstiPortPtr->designatedPriority.dsnBridgeID.priority,
+                 mstid , mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[0],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[1],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[3],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);

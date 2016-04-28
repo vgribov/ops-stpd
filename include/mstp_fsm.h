@@ -55,7 +55,7 @@ typedef uint8_t OCTET;
 #define PORTNAME_LEN 20
 #define SIZEOF_LSAP_HDR 17
 #define SIZEOF_ENET_HDR 14
-
+#define PRIORITY_MULTIPLIER 4096
 
 #define IS_VALID_LPORT(lport) ((lport >= 1) && (lport <= MAX_LPORTS))
 #define INTERNAL_VID (0x0fff) /* 4095 */
@@ -1756,6 +1756,7 @@ typedef struct MSTP_MESSAGES_t
  * spanning trees allocation information in BPDU.
  * (802.1Q-REV/D5.0 13.7).
  *---------------------------------------------------------------------------*/
+#pragma pack(push,1)
 typedef struct MSTP_MST_CONFIGURATION_ID_t
 {
    uint8_t   formatSelector PACKED; /* the value 0 is encoded */
@@ -1768,6 +1769,7 @@ typedef struct MSTP_MST_CONFIGURATION_ID_t
                           * 'mstp_DigestSignatureKey' used as the key value */
 
 } MSTP_MST_CONFIGURATION_ID_t;
+#pragma pack(pop)
 
 /*---------------------------------------------------------------------------
  * MST Bridge Identifier (CIST or MSTI)
@@ -1775,12 +1777,14 @@ typedef struct MSTP_MST_CONFIGURATION_ID_t
  *       use for priority value, the other 12 bits comprise a locally assigned
  *       system ID extensions.
  *---------------------------------------------------------------------------*/
+#pragma pack(push,1)
 typedef struct MSTP_BRIDGE_IDENTIFIER_t
 {
    uint16_t      priority;
    MAC_ADDRESS   mac_address;
 
 } MSTP_BRIDGE_IDENTIFIER_t;
+#pragma pack(pop)
 
 /*---------------------------------------------------------------------------
  * Bridge Identifiers used by STP, RSTP (identical to MSTP)
