@@ -666,6 +666,46 @@ mstp_showUsage(char *cmdName)
 
 }
 
+void mstpd_daemon_intf_to_mstp_map_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED)
+{
+    struct ds ds = DS_EMPTY_INITIALIZER;
+
+    mstpd_daemon_intf_to_mstp_map_data_dump(&ds, argc, argv);
+    unixctl_command_reply(conn, ds_cstr(&ds));
+    ds_destroy(&ds);
+}
+
+
+void
+mstpd_daemon_intf_to_mstp_map_data_dump(struct ds *ds, int argc, const char *argv[])
+{
+    struct iface_data *idp = NULL;
+    int i = 0;
+    if (argv[1])
+    {
+        idp = find_iface_data_by_name((char *)argv[1]);
+        if (idp)
+        {
+            ds_put_format(ds, "Interface Name : %s , MSTP Index: %d, L2port : %s\n", idp->name, idp->lport_id, is_port_set(&l2ports,i)?"True":"False");
+        }
+        else
+        {
+            ds_put_format(ds, "Interface name is invalid");
+        }
+        return;
+    }
+    for (i = 0; i < MAX_ENTRIES_IN_POOL; i++)
+    {
+        if(idp_lookup[i])
+        {
+            idp = idp_lookup[i];
+            ds_put_format(ds, "Interface Name : %s , MSTP Index: %d, L2port : %s\n", idp->name, i, is_port_set(&l2ports,i)?"True":"False");
+        }
+    }
+}
+
+
 void mstpd_daemon_cist_unixctl_list(struct unixctl_conn *conn, int argc,
                    const char *argv[], void *aux OVS_UNUSED)
 {

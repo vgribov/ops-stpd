@@ -361,7 +361,13 @@ mstp_ptiSmTickAct(LPORT_t lport)
        cistPortPtr->tcWhile--;
        if(cistPortPtr->tcWhile == 0)
        {
+           struct ovsdb_idl_txn *txn = NULL;
+           MSTP_OVSDB_LOCK;
+           txn = ovsdb_idl_txn_create(idl);
            mstp_util_set_msti_table_string(TOPOLOGY_CHANGE,"disable",mstid);
+           ovsdb_idl_txn_commit_block(txn);
+           ovsdb_idl_txn_destroy(txn);
+           MSTP_OVSDB_UNLOCK;
        }
    }
 
@@ -470,7 +476,13 @@ mstp_ptiSmTickAct(LPORT_t lport)
                mstiPortPtr->tcWhile--;
                if(mstiPortPtr->tcWhile == 0)
                {
+                   struct ovsdb_idl_txn *txn = NULL;
+                   MSTP_OVSDB_LOCK;
+                   txn = ovsdb_idl_txn_create(idl);
                    mstp_util_set_msti_table_string(TOPOLOGY_CHANGE,"disable",mstid);
+                   ovsdb_idl_txn_commit_block(txn);
+                   ovsdb_idl_txn_destroy(txn);
+                   MSTP_OVSDB_UNLOCK;
                }
             }
 

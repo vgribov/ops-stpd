@@ -56,6 +56,9 @@ void mstpd_daemon_debug_sm_data_dump(struct ds *ds, int argc, const char *argv[]
 void mstpd_daemon_digest_unixctl_list(struct unixctl_conn *conn, int argc,
                    const char *argv[], void *aux OVS_UNUSED);
 void mstpd_daemon_digest_data_dump(struct ds *ds, int argc, const char *argv[]);
+void mstpd_daemon_intf_to_mstp_map_unixctl_list(struct unixctl_conn *conn, int argc,
+                   const char *argv[], void *aux OVS_UNUSED);
+void mstpd_daemon_intf_to_mstp_map_data_dump(struct ds *ds, int argc, const char *argv[]);
 
 void *mstpd_rx_pdu_thread(void *data);
 int register_stp_mcast_addr(int ifindex);

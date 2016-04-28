@@ -120,6 +120,7 @@ mstpd_init(const char *db_path, struct unixctl_server *appctl)
     unixctl_command_register("mstpd/daemon/comm_port", "port", 1, 1, mstpd_daemon_comm_port_unixctl_list, NULL);
     unixctl_command_register("mstpd/daemon/mstp_debug_sm", "", 2, 2, mstpd_daemon_debug_sm_unixctl_list, NULL);
     unixctl_command_register("mstpd/daemon/mstp_digest", "", 0, 0, mstpd_daemon_digest_unixctl_list, NULL);
+    unixctl_command_register("mstpd/daemon/intf_to_mstp_map", "", 0, 1, mstpd_daemon_intf_to_mstp_map_unixctl_list, NULL);
 
     /* Spawn off the OVSDB interface thread. */
     rc = pthread_create(&ovs_if_thread,

@@ -83,17 +83,8 @@ mstp_addLport(LPORT_t lport)
       return;
 
    /*------------------------------------------------------------------------
-    * Check if port is already initialized
-    *------------------------------------------------------------------------*/
-   if(MSTP_COMM_PORT_PTR(lport) != NULL)
-   {
-      return;
-   }
-
-   /*------------------------------------------------------------------------
     * Initialize CIST specific port data
     *------------------------------------------------------------------------*/
-   STP_ASSERT(!MSTP_CIST_PORT_PTR(lport));
    mstp_initCistPortData(lport, TRUE);
 
    /*------------------------------------------------------------------------
@@ -103,7 +94,6 @@ mstp_addLport(LPORT_t lport)
    {
       if(MSTP_MSTI_INFO(mstid))
       {
-         STP_ASSERT(!MSTP_MSTI_PORT_PTR(mstid, lport));
          mstp_initMstiPortData(mstid, lport, TRUE);
       }
    }
@@ -265,7 +255,6 @@ mstp_adminStatusUpdate(int status)
    {/* the protocol has been enabled, run it */
 
       Spanning = TRUE; /* also used by other features */
-      mstp_Bridge.ForceVersion = MSTP_PROTOCOL_VERSION_ID_MST;
 
       /*---------------------------------------------------------------------
        * Initialize global 'mstp_MstiVlanTable'. By default all VLANs
