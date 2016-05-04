@@ -4721,6 +4721,8 @@ mstp_txMstp(LPORT_t lport)
        *---------------------------------------------------------------------*/
       memcpy(&bpdu->mstConfigurationId, &mstp_Bridge.MstConfigId,
              sizeof(bpdu->mstConfigurationId));
+      storeShortInPacket(&bpdu->mstConfigurationId.revisionLevel,
+                          mstp_Bridge.MstConfigId.revisionLevel);
       version3Len += sizeof(bpdu->mstConfigurationId);
 
       /*---------------------------------------------------------------------
