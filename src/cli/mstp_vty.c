@@ -44,8 +44,10 @@
 #include "vtysh/utils/ovsdb_vtysh_utils.h"
 #include "mstp_vty.h"
 #include "vtysh_ovsdb_mstp_context.h"
+#include "ops-utils.h"
 
 extern struct ovsdb_idl *idl;
+const struct shash_node **sort_interface(const struct shash *sh);
 
 VLOG_DEFINE_THIS_MODULE(vtysh_mstp_cli);
 
@@ -69,6 +71,33 @@ mstp_print_port_statistics(const struct ovsrec_mstp_common_instance_port *cist_p
             smap_get_int(&cist_port->mstp_statistics, MSTP_TX_BPDU, 0),
             smap_get_int(&cist_port->mstp_statistics, MSTP_RX_BPDU, 0),
             VTY_NEWLINE);
+}
+
+/*-----------------------------------------------------------------------------
+ | Function:        compare_nodes_by_vlan_id_in_numerical
+ | Responsibility:  Utility API to compare VLAN ID
+ ------------------------------------------------------------------------------
+ */
+int
+compare_nodes_by_vlan_id_in_numerical(const void *a_, const void *b_)
+{
+    const struct shash_node *const *a = a_;
+    const struct shash_node *const *b = b_;
+    uint i1=0,i2=0;
+
+    if(!a && !b) {
+        VLOG_DBG("Invalid argument %s: %d\n", __FILE__, __LINE__);
+        return -2;
+    }
+    sscanf((*a)->name,"%d",&i1);
+    sscanf((*b)->name,"%d",&i2);
+
+    if (i1 == i2)
+        return 0;
+    else if (i1 < i2)
+        return -1;
+    else
+        return 1;
 }
 
 /*-----------------------------------------------------------------------------
@@ -107,6 +136,41 @@ mstp_util_get_mstid_for_vlanID(int64_t vlan_id,
 }
 
 /*-----------------------------------------------------------------------------
+ | Function:        mstp_util_sort_vlan_id
+ | Responsibility:  Utility API sort VLAN ID
+ ------------------------------------------------------------------------------
+ */
+const struct shash_node **
+mstp_util_sort_vlan_id(const struct shash *sh)
+{
+    if (shash_is_empty(sh)) {
+        return NULL;
+    }
+    else {
+        const struct shash_node **nodes;
+        struct shash_node *node;
+
+        size_t i, n;
+        n = shash_count(sh);
+        nodes = xmalloc(n * sizeof *nodes);
+        if(!nodes) {
+            VLOG_DBG("Memory allocation failed %s: %d%s",
+                    __FILE__, __LINE__, VTY_NEWLINE);
+            return NULL;
+        }
+        i = 0;
+        SHASH_FOR_EACH (node, sh) {
+            nodes[i++] = node;
+        }
+        ovs_assert(i == n);
+
+        qsort(nodes, n, sizeof *nodes, compare_nodes_by_vlan_id_in_numerical);
+        return nodes;
+    }
+}
+
+
+/*-----------------------------------------------------------------------------
  | Function:        cli_show_spanning_tree_detailed_config
  | Responsibility:  Displays the spanning-tree related global configurations
  | Parameters:
@@ -118,6 +182,9 @@ static int
 cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance *cist_row) {
     const struct ovsrec_mstp_common_instance_port *cist_port;
     int64_t current_time = (int64_t)time(NULL);
+    struct shash sorted_port_id;
+    const struct shash_node **cist_port_nodes = NULL;
+    int64_t count = 0, i = 0;
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
@@ -146,10 +213,28 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
             (cist_row->forward_delay_expiry_time)?*cist_row->forward_delay_expiry_time:0,
             VTY_NEWLINE);
 
+    /* Create the CIST port shash list */
+    shash_init(&sorted_port_id);
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
-        if (!cist_port->port) {
-           continue;
+        if(!cist_port->port) {
+            VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+            continue;
         }
+        if ( NULL == shash_add(&sorted_port_id, cist_port->port->name, (void *)cist_port)) {
+            shash_destroy(&sorted_port_id);
+            return e_vtysh_ok;
+        }
+    }
+
+    cist_port_nodes = sort_interface(&sorted_port_id);
+    if (!cist_port_nodes) {
+        shash_destroy(&sorted_port_id);
+        return e_vtysh_ok;
+    }
+    count = shash_count(&sorted_port_id);
+
+    for(i=0; i<count; i++) {
+        cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
         vty_out(vty, "%sPort %s %s", VTY_NEWLINE, cist_port->port->name, VTY_NEWLINE);
 
         /* TODO - Need to split in mac and priority*/
@@ -167,6 +252,8 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
                      VTY_NEWLINE);
         mstp_print_port_statistics(cist_port);
     }
+    shash_destroy(&sorted_port_id);
+    free(cist_port_nodes);
     return e_vtysh_ok;
 }
 
@@ -184,6 +271,11 @@ cli_show_spanning_tree_config(bool detail) {
     const struct ovsrec_mstp_common_instance *cist_row;
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_system *system_row = NULL;
+    struct shash sorted_port_id;
+    const struct shash_node **cist_port_nodes = NULL;
+    int64_t count = 0, i = 0;
+    char root_mac[OPS_MAC_STR_SIZE] = {0};
+    int priority = 0, sys_id = 0;
 
     /* Get the current time to calculate the last topology change */
     system_row = ovsrec_system_first(idl);
@@ -210,13 +302,17 @@ cli_show_spanning_tree_config(bool detail) {
         return e_vtysh_error;
     }
 
+    if(cist_row->designated_root) {
+        sscanf(cist_row->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
+    }
+
     vty_out(vty, "%s%s", "MST0", VTY_NEWLINE);
     vty_out(vty, "  %s%s", "Spanning tree status: Enabled", VTY_NEWLINE);
-    vty_out(vty, "  %-10s %-10s: %-20ld%s", "Root ID", "Priority",
-            *cist_row->priority, VTY_NEWLINE);
-    vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
-            (cist_row->designated_root)?cist_row->designated_root:system_row->system_mac,
-            VTY_NEWLINE);
+    vty_out(vty, "  %-10s %-10s: %-20d%s", "Root ID", "Priority",
+                    priority, VTY_NEWLINE);
+
+    vty_out(vty, "  %22s: %-20s%s", "MAC-Address", root_mac, VTY_NEWLINE);
+
     if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
         vty_out(vty, "  %34s%s", "This bridge is the root", VTY_NEWLINE);
     }
@@ -241,10 +337,29 @@ cli_show_spanning_tree_config(bool detail) {
     vty_out(vty, "%s %s%s",
             "------------ --------------",
             "---------- ------- ---------- ----------", VTY_NEWLINE);
+
+    /* Create the CIST port shash list */
+    shash_init(&sorted_port_id);
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
-        if (!cist_port->port) {
-           continue;
+        if(!cist_port->port) {
+            VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+            continue;
         }
+        if( NULL == shash_add(&sorted_port_id, cist_port->port->name, (void *)cist_port)) {
+            shash_destroy(&sorted_port_id);
+            return e_vtysh_ok;
+        }
+    }
+    cist_port_nodes = sort_interface(&sorted_port_id);
+    if (!cist_port_nodes) {
+        shash_destroy(&sorted_port_id);
+        return e_vtysh_ok;
+    }
+
+    count = shash_count(&sorted_port_id);
+
+    for(i=0; i<count; i++) {
+        cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
         vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state, *cist_port->admin_path_cost,
@@ -255,6 +370,8 @@ cli_show_spanning_tree_config(bool detail) {
     if(detail) {
         cli_show_spanning_tree_detailed_config(cist_row);
     }
+    shash_destroy(&sorted_port_id);
+    free(cist_port_nodes);
 
     return e_vtysh_ok;
 }
@@ -270,7 +387,11 @@ cli_show_spanning_tree_config(bool detail) {
 static int
 cli_show_mstp_config() {
     const struct ovsrec_bridge *bridge_row = NULL;
+    const struct ovsrec_mstp_instance *mstp_row = NULL;
     int i = 0, j = 0;
+    struct shash sorted_vlan_id;
+    char str[15] = {0};
+    const struct shash_node **vlan_nodes = NULL;
 
     bridge_row = ovsrec_bridge_first(idl);
     if (!bridge_row) {
@@ -302,14 +423,36 @@ cli_show_mstp_config() {
 
     /* Loop for all instance in bridge table */
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
+        shash_init(&sorted_vlan_id);
+        memset(str, 0, 15);
+        mstp_row = bridge_row->value_mstp_instances[i];
+
+        /* Create the vlan shash list */
+        for (j=0; j<mstp_row->n_vlans; j++) {
+            sprintf(str, "%ld", mstp_row->vlans[j]->id);
+            if ( NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[j])) {
+                shash_destroy(&sorted_vlan_id);
+                return e_vtysh_ok;
+            }
+        }
+
+        /* Get the sorted list of vlans from shash */
+        vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
+        if(!vlan_nodes) {
+            shash_destroy(&sorted_vlan_id);
+            return e_vtysh_ok;
+        }
+
         /* Loop for all vlans in one MST instance table */
         vty_out(vty,"%-15ld %ld", bridge_row->key_mstp_instances[i],
-                bridge_row->value_mstp_instances[i]->vlans[0]->id);
-        for (j=1; j<bridge_row->value_mstp_instances[i]->n_vlans; j++) {
-            vty_out(vty, ",%ld",
-                    bridge_row->value_mstp_instances[i]->vlans[j]->id );
+                ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
+        for (j=1; j<mstp_row->n_vlans; j++) {
+            vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id);
         }
         vty_out(vty, "%s", VTY_NEWLINE);
+        shash_destroy(&sorted_vlan_id);
+        free(vlan_nodes);
+        vlan_nodes = NULL;
     }
     return e_vtysh_ok;
 }
@@ -329,6 +472,12 @@ mstp_show_common_instance_info(
     const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
     const struct ovsrec_system *system_row = NULL;
     int j = 0;
+    struct shash sorted_vlan_id;
+    const struct shash_node **vlan_nodes = NULL;
+    const struct shash_node **cist_port_nodes = NULL;
+    struct shash sorted_port_id;
+    char str[15] = {0};
+    int64_t count = 0;
 
     system_row = ovsrec_system_first(idl);
     if (!system_row) {
@@ -336,12 +485,29 @@ mstp_show_common_instance_info(
         return e_vtysh_error;
     }
 
+    /* Create the vlan shash list */
+    shash_init(&sorted_vlan_id);
+    for (j=0; j<cist_row->n_vlans; j++) {
+        sprintf(str, "%ld", cist_row->vlans[j]->id);
+        if( NULL == shash_add(&sorted_vlan_id, str, (void *)cist_row->vlans[j])) {
+            shash_destroy(&sorted_vlan_id);
+            return e_vtysh_ok;
+        }
+    }
+
+    /* Get the sorted list of vlans from shash */
+    vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
+    if(!vlan_nodes) {
+        shash_destroy(&sorted_vlan_id);
+        return e_vtysh_ok;
+    }
+
     /* common instance table details */
     vty_out(vty, "%-14s %s%s  ", "#### MST0", VTY_NEWLINE, "Vlans mapped:");
     if (cist_row->vlans) {
-        vty_out(vty, "%ld", cist_row->vlans[0]->id);
+        vty_out(vty, "%ld", ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
         for (j=1; j<cist_row->n_vlans; j++) {
-            vty_out(vty, ",%ld", cist_row->vlans[j]->id);
+            vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id);
         }
     }
     vty_out(vty, "%s", VTY_NEWLINE);
@@ -381,16 +547,39 @@ mstp_show_common_instance_info(
             "-------------- --------------",
             "---------- ---------- ---------- ----------",
             VTY_NEWLINE);
+
+    /* Create the CIST port shash list */
+    shash_init(&sorted_port_id);
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
-        if (!cist_port->port) {
+        if(!cist_port->port) {
+            VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
             continue;
         }
+        if ( NULL == shash_add(&sorted_port_id, cist_port->port->name, (void *)cist_port)) {
+            shash_destroy(&sorted_port_id);
+            return e_vtysh_ok;
+        }
+    }
+
+    cist_port_nodes = sort_interface(&sorted_port_id);
+    if (!cist_port_nodes) {
+        shash_destroy(&sorted_port_id);
+        return e_vtysh_ok;
+    }
+    count = shash_count(&sorted_port_id);
+
+    for(j=0; j<count; j++) {
+        cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[j]->data;
         vty_out(vty, "%-14s %-14s %-10s %-10ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state, *cist_port->admin_path_cost,
                 *cist_port->port_priority, cist_port->link_type,
                 VTY_NEWLINE);
     }
+    shash_destroy(&sorted_vlan_id);
+    shash_destroy(&sorted_port_id);
+    free(cist_port_nodes);
+    free(vlan_nodes);
     return e_vtysh_ok;
 }
 
@@ -452,6 +641,11 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     const struct ovsrec_system *system_row = NULL;
     const struct ovsrec_mstp_instance_port *mstp_port = NULL;
     int j = 0;
+    struct shash sorted_vlan_id;
+    char str[15] = {0};
+    const struct shash_node **vlan_nodes = NULL;
+    const struct shash_node **mstp_port_nodes = NULL;
+    struct shash sorted_port_id;
 
     if (!cist_row) {
         VLOG_DBG("Invalid arguments for mstp_show_instance_info %s: %d\n",
@@ -465,12 +659,29 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
         return e_vtysh_error;
     }
 
+    /* Create the vlan shash list */
+    shash_init(&sorted_vlan_id);
+    for (j=0; j<mstp_row->n_vlans; j++) {
+        sprintf(str, "%ld", mstp_row->vlans[j]->id);
+        if (NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[j])) {
+            shash_destroy(&sorted_vlan_id);
+            return e_vtysh_ok;
+        }
+    }
+
+    /* Get the sorted list of vlans from shash */
+    vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
+    if(!vlan_nodes) {
+        shash_destroy(&sorted_vlan_id);
+        return e_vtysh_ok;
+    }
+
     vty_out(vty, "%s%s%ld%s%s  ", VTY_NEWLINE, "#### MST",
            inst_id, VTY_NEWLINE, "Vlans mapped:");
     if (mstp_row->vlans) {
-        vty_out(vty, "%ld", mstp_row->vlans[0]->id);
+        vty_out(vty, "%ld", ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
         for (j=1; j<mstp_row->n_vlans; j++) {
-            vty_out(vty, ",%ld", mstp_row->vlans[j]->id);
+            vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id);
         }
     }
     vty_out(vty, "%s", VTY_NEWLINE);
@@ -498,8 +709,23 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
             "---------- ------- ---------- ----------",
             VTY_NEWLINE);
 
+    shash_init(&sorted_port_id);
     for (j=0; j < mstp_row->n_mstp_instance_ports; j++) {
         mstp_port = mstp_row->mstp_instance_ports[j];
+        if(NULL == shash_add(&sorted_port_id, mstp_port->port->name, (void *)mstp_port)) {
+            shash_destroy(&sorted_port_id);
+            return e_vtysh_ok;
+        }
+    }
+
+    mstp_port_nodes = sort_interface(&sorted_port_id);
+    if (!mstp_port_nodes) {
+        shash_destroy(&sorted_port_id);
+        return e_vtysh_ok;
+    }
+
+    for (j=0; j < mstp_row->n_mstp_instance_ports; j++) {
+        mstp_port = (const struct ovsrec_mstp_instance_port *)mstp_port_nodes[j]->data;
         if(!mstp_port) {
             assert(0);
             return e_vtysh_error;
@@ -512,6 +738,10 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
                     *mstp_port->port_priority, DEF_LINK_TYPE, VTY_NEWLINE);
         }
     }
+    shash_destroy(&sorted_vlan_id);
+    shash_destroy(&sorted_port_id);
+    free(mstp_port_nodes);
+    free(vlan_nodes);
     return e_vtysh_ok;
 }
 
@@ -532,6 +762,9 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
     const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
     int i = 0;
+    struct shash sorted_vlan_id;
+    char str[15] = {0};
+    const struct shash_node **vlan_nodes = NULL;
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
@@ -611,11 +844,31 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
 
         /* Vlans Mapped */
         if (mstp_row->vlans) {
-            vty_out(vty, " %ld", mstp_row->vlans[0]->id);
+
+            /* Create the vlan shash list */
+            shash_init(&sorted_vlan_id);
+            for (i=0; i<mstp_row->n_vlans; i++) {
+                sprintf(str, "%ld", mstp_row->vlans[i]->id);
+                if (NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[i])) {
+                    shash_destroy(&sorted_vlan_id);
+                    return e_vtysh_ok;
+                }
+            }
+
+            /* Get the sorted list of vlans from shash */
+            vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
+            if(!vlan_nodes) {
+                shash_destroy(&sorted_vlan_id);
+                return e_vtysh_ok;
+            }
+
+            vty_out(vty, " %ld", ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
             for (i=1; i<mstp_row->n_vlans; i++) {
-                vty_out(vty, ",%ld", mstp_row->vlans[i]->id);
+                vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[i]->data)->id);
             }
             vty_out(vty, "%s", VTY_NEWLINE);
+            shash_destroy(&sorted_vlan_id);
+            free(vlan_nodes);
         }
     }
     else {
@@ -696,6 +949,10 @@ cli_show_mst(int inst_id, bool detail_flag) {
     /* Display common instance ports data */
     if(detail_flag) {
         OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
+            if(!cist_port_row->port) {
+                VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+                continue;
+            }
             mstp_show_common_instance_port_info(cist_row, cist_port_row);
         }
     }
@@ -719,6 +976,9 @@ cli_show_mstp_global_config() {
     const struct ovsrec_mstp_instance *mstp_row = NULL;
     const char *data = NULL;
     int i = 0, j = 0;
+    struct shash sorted_vlan_id;
+    char str[15] = {0};
+    const struct shash_node **vlan_nodes = NULL;
 
     system_row = ovsrec_system_first(idl);
     if (!system_row) {
@@ -752,10 +1012,29 @@ cli_show_mstp_global_config() {
                 return e_vtysh_error;
             }
 
+            /* Create the vlan shash list */
+            shash_init(&sorted_vlan_id);
+            memset(str, 0, 15);
+            for (j=0; j<mstp_row->n_vlans; j++) {
+                sprintf(str, "%ld", mstp_row->vlans[j]->id);
+                if (NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[j])) {
+                    shash_destroy(&sorted_vlan_id);
+                    return e_vtysh_ok;
+                }
+            }
+
+            /* Get the sorted list of vlans from shash */
+            vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
+            if(!vlan_nodes) {
+                shash_destroy(&sorted_vlan_id);
+                return e_vtysh_ok;
+            }
+
             /* Loop for all vlans in one MST instance table */
             for (j=0; j<mstp_row->n_vlans; j++) {
                 vty_out(vty, "spanning-tree instance %ld vlan %ld%s",
-                    bridge_row->key_mstp_instances[i], mstp_row->vlans[j]->id,
+                    bridge_row->key_mstp_instances[i],
+                    ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id,
                     VTY_NEWLINE);
             }
 
@@ -765,6 +1044,9 @@ cli_show_mstp_global_config() {
                 bridge_row->key_mstp_instances[i],
                 *mstp_row->priority, VTY_NEWLINE);
             }
+            shash_destroy(&sorted_vlan_id);
+            free(vlan_nodes);
+            vlan_nodes = NULL;
         }
     }
 
@@ -821,6 +1103,8 @@ cli_show_mstp_intf_config() {
     const struct ovsrec_bridge *bridge_row = NULL;
     int i = 0, j = 0, k = 0;
     bool if_print = true;
+    struct shash sorted_port_id;
+    const struct shash_node **cist_port_nodes = NULL;
 
     bridge_row = ovsrec_bridge_first(idl);
     if (!bridge_row) {
@@ -831,10 +1115,31 @@ cli_show_mstp_intf_config() {
         return e_vtysh_ok;
     }
 
+    /* Create the CIST port shash list */
+    shash_init(&sorted_port_id);
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
+        if(!cist_port_row->port) {
+            VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+            continue;
+        }
+        if (NULL == shash_add(&sorted_port_id, cist_port_row->port->name, (void *)cist_port_row)) {
+            shash_destroy(&sorted_port_id);
+            return e_vtysh_ok;
+        }
+    }
+
+    cist_port_nodes = sort_interface(&sorted_port_id);
+    if (!cist_port_nodes) {
+        shash_destroy(&sorted_port_id);
+        return e_vtysh_ok;
+    }
+
     /* CIST port configs */
     for (i=0; i < cist_row->n_mstp_common_instance_ports; i++) {
-        cist_port_row = cist_row->mstp_common_instance_ports[i];
+        cist_port_row = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
         if(!cist_port_row) {
+            shash_destroy(&sorted_port_id);
+            free(cist_port_nodes);
             assert(0);
             return e_vtysh_error;
         }
@@ -932,6 +1237,8 @@ cli_show_mstp_intf_config() {
             }
         }
     }
+    shash_destroy(&sorted_port_id);
+    free(cist_port_nodes);
     return e_vtysh_ok;
 }
 
@@ -975,6 +1282,10 @@ mstp_cli_set_cist_port_table (const char *if_name, const char *key,
     START_DB_TXN(txn);
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
+        if(!cist_port_row->port) {
+            VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+            continue;
+        }
         if (VTYSH_STR_EQ(cist_port_row->port->name, if_name)) {
             break;
         }
@@ -1119,7 +1430,7 @@ mstp_cli_set_mst_inst(const char *if_name,const char *key,
     const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
     int i = 0;
 
-    if (!(key && if_name)) {
+    if (!key) {
         VLOG_DBG("Invalid arguments for mstp_cli_set_mst_inst %s: %d\n",
                 __FILE__, __LINE__);
         return e_vtysh_error;
@@ -1157,6 +1468,11 @@ mstp_cli_set_mst_inst(const char *if_name,const char *key,
         END_DB_TXN(txn);
     }
 
+    /* Set the priority value to the instance*/
+    if(VTYSH_STR_EQ(key, MSTP_BRIDGE_PRIORITY)) {
+        ovsrec_mstp_instance_set_priority(mstp_row, &value, 1);
+    }
+
     /* Find the MSTP instance port entry matching with the port index */
     if( if_name != NULL) {
         for (i=0; i < mstp_row->n_mstp_instance_ports; i++) {
@@ -1174,13 +1490,13 @@ mstp_cli_set_mst_inst(const char *if_name,const char *key,
             ERRONEOUS_DB_TXN(txn,
                     "No MSTP instance port found with this port index");
         }
-    }
 
-    if(VTYSH_STR_EQ(key, MSTP_PORT_COST)) {
-        ovsrec_mstp_instance_port_set_admin_path_cost(mstp_port_row, &value, 1);
-    }
-    else if(VTYSH_STR_EQ(key, MSTP_PORT_PRIORITY)) {
-        ovsrec_mstp_instance_port_set_port_priority(mstp_port_row, &value, 1);
+        if(VTYSH_STR_EQ(key, MSTP_PORT_COST)) {
+            ovsrec_mstp_instance_port_set_admin_path_cost(mstp_port_row, &value, 1);
+        }
+        else if(VTYSH_STR_EQ(key, MSTP_PORT_PRIORITY)) {
+            ovsrec_mstp_instance_port_set_port_priority(mstp_port_row, &value, 1);
+        }
     }
 
     /* End of transaction. */
@@ -1420,7 +1736,7 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
     int i = 0, j = 0;
     int64_t port_priority = DEF_MSTP_PORT_PRIORITY;
     int64_t priority = DEF_BRIDGE_PRIORITY;
-    int64_t admin_path_cost = 0;
+    int64_t admin_path_cost = DEF_MSTP_COST;
 
     int vlan_id =(vlanid)? atoi(vlanid):MSTP_INVALID_ID;
 
