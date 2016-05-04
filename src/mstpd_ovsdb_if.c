@@ -1633,6 +1633,7 @@ int mstp_global_config_update(void) {
         mstp_config_name = xstrdup(system_row->system_mac);
     }
     if (strcmp(mstp_global_conf.config_name,mstp_config_name)!= 0) {
+        memset(mstp_global_conf.config_name,0,MSTP_MAX_CONFIG_NAME_LEN);
         strcpy(mstp_global_conf.config_name,mstp_config_name);
         config_change = TRUE;
     }

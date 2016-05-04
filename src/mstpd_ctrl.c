@@ -888,6 +888,7 @@ void update_mstp_global_config(mstpd_message *pmsg)
     if(memcmp(mstp_Bridge.MstConfigId.configName, global_config->config_name,
                 MSTP_MST_CONFIG_NAME_LEN))
     {
+        memset(mstp_Bridge.MstConfigId.configName, 0, MSTP_MST_CONFIG_NAME_LEN);
         memcpy(mstp_Bridge.MstConfigId.configName, global_config->config_name,
                 MSTP_MST_CONFIG_NAME_LEN);
         MSTP_DYN_RECONFIG_CHANGE = TRUE;
