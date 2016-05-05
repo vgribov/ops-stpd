@@ -629,7 +629,10 @@ mstp_prtSmDisabledPortCond(MSTID_t mstid, LPORT_t lport)
    MSTP_COMM_PORT_INFO_t *commPortPtr = NULL;
 
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if (!commPortPtr)
+   {
+        STP_ASSERT(0);
+   }
 
    /*------------------------------------------------------------------------
     * collect state exit conditions information

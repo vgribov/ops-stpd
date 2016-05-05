@@ -4052,7 +4052,10 @@ mstp_setTcPropTree(MSTID_t mstid, LPORT_t lport)
    STP_ASSERT(IS_VALID_LPORT(lport));
 
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if (!commPortPtr)
+   {
+       STP_ASSERT(0);
+   }
 
    if(MSTP_COMM_PORT_IS_BIT_SET(MSTP_COMM_PORT_PTR(lport)->bitMap,
                                 MSTP_PORT_RESTRICTED_TCN))
@@ -4206,7 +4209,10 @@ mstp_txTcn(LPORT_t lport)
     * common Per-Port information
     *------------------------------------------------------------------------*/
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if (!commPortPtr)
+   {
+       STP_ASSERT(0);
+   }
 
    /*------------------------------------------------------------------------
     * CIST specific Per-Port information
@@ -4515,7 +4521,11 @@ mstp_txMstp(LPORT_t lport)
     * common Per-Port information
     *------------------------------------------------------------------------*/
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if (!commPortPtr)
+   {
+       STP_ASSERT(0);
+   }
+
 
    /*------------------------------------------------------------------------
     * CIST specific Per-Port information

@@ -983,7 +983,10 @@ mstp_tcmSmNotifiedTcnAct(MSTID_t mstid, LPORT_t lport)
 
    STP_ASSERT(MSTP_BEGIN == FALSE);
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if (!commPortPtr)
+   {
+        STP_ASSERT(0);
+   }
    STP_ASSERT((mstid == MSTP_CISTID) ?
           MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,MSTP_PORT_RCVD_TCN) :
           !MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,MSTP_PORT_RCVD_TCN));

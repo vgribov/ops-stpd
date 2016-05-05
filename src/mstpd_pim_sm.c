@@ -475,7 +475,10 @@ mstp_pimSmCurrentCond(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport)
    STP_ASSERT(statePtr && *statePtr == MSTP_PIM_STATE_CURRENT);
 
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if(!commPortPtr)
+    {
+        STP_ASSERT(0);
+    }
 
    cistPortPtr = MSTP_CIST_PORT_PTR(lport);
    STP_ASSERT(cistPortPtr);
@@ -1791,7 +1794,10 @@ mstp_syncMstiPortsWithCist(LPORT_t lport)
    STP_ASSERT(MSTP_BEGIN == FALSE);
    STP_ASSERT(IS_VALID_LPORT(lport));
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   STP_ASSERT(commPortPtr);
+   if(!commPortPtr)
+   {
+       STP_ASSERT(0);
+   }
 
    for(mstid = MSTP_MSTID_MIN; mstid <= MSTP_MSTID_MAX; mstid++)
    {
