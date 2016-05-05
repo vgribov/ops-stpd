@@ -3607,6 +3607,7 @@ mstp_setRcvdMsgs(MSTP_RX_PDU *pkt, LPORT_t lport)
    if(bpduType == MSTP_BPDU_TYPE_MSTP)
    {
       cistPortPtr->dbgCnts.mstBpduRxCnt++;
+      update_mstp_counters(lport, MSTP_RX_BPDU);
       cistPortPtr->dbgCnts.mstBpduRxCntLastUpdated = time(NULL);
    }
    else if(bpduType == MSTP_BPDU_TYPE_RSTP)
@@ -4932,6 +4933,7 @@ mstp_txMstp(LPORT_t lport)
 
       /* Update MST BPDUs TX statistics */
       cistPortPtr->dbgCnts.mstBpduTxCnt++;
+      update_mstp_counters(lport, MSTP_TX_BPDU);
       cistPortPtr->dbgCnts.mstBpduTxCntLastUpdated = time(NULL);
    }
 

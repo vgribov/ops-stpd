@@ -1552,47 +1552,59 @@ const char* system_get_mac_addr(void)
 }
 
 /**PROC+***********************************************************
- * Name:    update_mstp_tx_counters
+ * Name:    update_mstp_counters
  *
  * Purpose: update Tx counters for MSTP
  *
- * Params:    none
+ * Params:    lport: port number
+ *            key  : Statistics key value for setting the counter
  *
  * Returns:   none
  *
  **PROC-*****************************************************************/
 
-void update_mstp_tx_counters()
+void update_mstp_counters(LPORT_t lport, const char *key)
 {
-    const struct ovsrec_bridge *bridge_row = NULL;
     struct ovsdb_idl_txn *txn = NULL;
     struct smap smap = SMAP_INITIALIZER(&smap);
     int value = 0;
     const char *temp = NULL;
     char count[5]={0};
+    struct iface_data *idp = NULL;
+    const struct ovsrec_mstp_common_instance_port *cist_port;
 
     MSTP_OVSDB_LOCK;
     txn = ovsdb_idl_txn_create(idl);
+    if((!lport) || (!key)) {
+        VLOG_DBG("Invalid Input %s:%d", __FILE__, __LINE__);
+        return;
+    }
 
-    bridge_row = ovsrec_bridge_first(idl);
-    if (!bridge_row) {
-        VLOG_ERR("no bridge record found\n");
+    idp = find_iface_data_by_index(lport);
+    if(!idp) {
+        VLOG_DBG("find_iface_data_by_index failed %s:%d", __FILE__, __LINE__);
+        return;
     }
-    temp = smap_get(&bridge_row->other_config, MSTP_TX_BPDU);
-    if(temp)
-    {
-        value = atoi(temp);
+
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        if(strcmp(idp->name, cist_port->port->name) == 0) {
+            break;
+        }
     }
-    else
-    {
-        value = 0;
+
+    if(!cist_port) {
+        VLOG_DBG("MSTP CIST port doesnot exist %s:%d", __FILE__, __LINE__);
+        return;
     }
+
+    temp = smap_get(&cist_port->mstp_statistics, key);
+    value = (temp)?atoi(temp):0;
     value++;
     sprintf(count,"%d",value);
-    smap_clone(&smap, &bridge_row->other_config);
-    smap_replace(&smap, MSTP_TX_BPDU, count);
+    smap_clone(&smap, &cist_port->mstp_statistics);
+    smap_replace(&smap, key, count);
 
-    ovsrec_bridge_set_other_config(bridge_row, &smap);
+    ovsrec_mstp_common_instance_port_set_mstp_statistics(cist_port, &smap);
     smap_destroy(&smap);
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
