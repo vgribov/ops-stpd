@@ -185,6 +185,9 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
     struct shash sorted_port_id;
     const struct shash_node **cist_port_nodes = NULL;
     int64_t count = 0, i = 0;
+    char root_mac[OPS_MAC_STR_SIZE] = {0};
+    int priority = 0, sys_id = 0;
+
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
@@ -237,12 +240,21 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
         cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
         vty_out(vty, "%sPort %s %s", VTY_NEWLINE, cist_port->port->name, VTY_NEWLINE);
 
-        /* TODO - Need to split in mac and priority*/
-        vty_out(vty, "%-43s:%2d %s %s %s", "Designated root has priority", 0,
-                    "Address:", cist_port->designated_root, VTY_NEWLINE);
+        if(cist_port->designated_root) {
+            memset(root_mac, 0, sizeof(root_mac));
+            priority = 0;
+            sscanf(cist_port->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
+        }
+        vty_out(vty, "%-43s:%2d %s %s %s", "Designated root has priority", priority,
+                    "Address:", root_mac, VTY_NEWLINE);
 
-        vty_out(vty, "%-43s:%2d %s %s %s", "Designated bridge has priority", 0,
-                    "Address:", cist_port->designated_bridge, VTY_NEWLINE);
+        if(cist_port->designated_bridge) {
+            memset(root_mac, 0, sizeof(root_mac));
+            priority = 0;
+            sscanf(cist_port->designated_bridge, "%d.%d.%s", &priority, &sys_id, root_mac);
+        }
+        vty_out(vty, "%-43s:%2d %s %s %s", "Designated bridge has priority", priority,
+                    "Address:", root_mac, VTY_NEWLINE);
 
         vty_out(vty, "%-43s:%2d %s %s %s", "Designated port has priority", 0,
                     "Address:", cist_port->designated_port, VTY_NEWLINE);
@@ -313,7 +325,7 @@ cli_show_spanning_tree_config(bool detail) {
 
     vty_out(vty, "  %22s: %-20s%s", "MAC-Address", root_mac, VTY_NEWLINE);
 
-    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
+    if (VTYSH_STR_EQ(system_row->system_mac, root_mac)) {
         vty_out(vty, "  %34s%s", "This bridge is the root", VTY_NEWLINE);
     }
     vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
@@ -323,7 +335,8 @@ cli_show_spanning_tree_config(bool detail) {
             VTY_NEWLINE);
 
     vty_out(vty, "%s  %-10s %-10s: %-20ld%s", VTY_NEWLINE, "Bridge ID",
-            "Priority", *cist_row->priority, VTY_NEWLINE);
+            "Priority", ((*cist_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
+            VTY_NEWLINE);
     vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
             system_row->system_mac, VTY_NEWLINE);
     vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
@@ -363,8 +376,8 @@ cli_show_spanning_tree_config(bool detail) {
         vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state, *cist_port->admin_path_cost,
-                *cist_port->port_priority, cist_port->link_type,
-                VTY_NEWLINE);
+                ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
+                cist_port->link_type, VTY_NEWLINE);
     }
 
     if(detail) {
@@ -497,10 +510,7 @@ mstp_show_common_instance_info(
 
     /* Get the sorted list of vlans from shash */
     vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
-    if(!vlan_nodes) {
-        shash_destroy(&sorted_vlan_id);
-        return e_vtysh_ok;
-    }
+    shash_destroy(&sorted_vlan_id);
 
     /* common instance table details */
     vty_out(vty, "%-14s %s%s  ", "#### MST0", VTY_NEWLINE, "Vlans mapped:");
@@ -512,7 +522,8 @@ mstp_show_common_instance_info(
     }
     vty_out(vty, "%s", VTY_NEWLINE);
     vty_out(vty, "%-14s %s:%-20s %s:%ld%s", "Bridge", "Address",
-            system_row->system_mac, "priority", *cist_row->priority,
+            system_row->system_mac, "priority",
+            ((*cist_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
     if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
         vty_out(vty, "%-14s%s", "Root", VTY_NEWLINE);
@@ -573,10 +584,9 @@ mstp_show_common_instance_info(
         vty_out(vty, "%-14s %-14s %-10s %-10ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state, *cist_port->admin_path_cost,
-                *cist_port->port_priority, cist_port->link_type,
-                VTY_NEWLINE);
+                ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
+                cist_port->link_type, VTY_NEWLINE);
     }
-    shash_destroy(&sorted_vlan_id);
     shash_destroy(&sorted_port_id);
     free(cist_port_nodes);
     free(vlan_nodes);
@@ -687,12 +697,12 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     vty_out(vty, "%s", VTY_NEWLINE);
     vty_out(vty, "%-14s %s:%-20s %s:%ld%s", "Bridge", "Address",
             system_row->system_mac, "Priority",
-            (mstp_row->priority)?*mstp_row->priority:DEF_BRIDGE_PRIORITY,
+            ((*mstp_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
     vty_out(vty, "%-14s Address:%-20s Priority:%ld%s", "Root",
             (mstp_row->designated_root)?:system_row->system_mac,
-            (mstp_row->root_priority)?*mstp_row->root_priority:DEF_BRIDGE_PRIORITY,
+            (mstp_row->root_priority)?*mstp_row->root_priority:(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
     vty_out(vty, "%19s:%ld, Cost:%ld, Rem Hops:%ld%s", "Port",
@@ -735,7 +745,8 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
                     mstp_port->port->name, mstp_port->port_role,
                     mstp_port->port_state,
                     (mstp_port->admin_path_cost)?*mstp_port->admin_path_cost:DEF_MSTP_COST,
-                    *mstp_port->port_priority, DEF_LINK_TYPE, VTY_NEWLINE);
+                    ((*mstp_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
+                    DEF_LINK_TYPE, VTY_NEWLINE);
         }
     }
     shash_destroy(&sorted_vlan_id);
@@ -840,7 +851,8 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 "---------- ---------- ---------- ----------", VTY_NEWLINE);
         vty_out(vty, "%-14d %-14s %-10s %-10ld %-10ld", inst_id,
                 mstp_port_row->port_role, mstp_port_row->port_state,
-                *mstp_port_row->admin_path_cost, *mstp_port_row->port_priority);
+                *mstp_port_row->admin_path_cost,
+                ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
 
         /* Vlans Mapped */
         if (mstp_row->vlans) {
@@ -1468,11 +1480,6 @@ mstp_cli_set_mst_inst(const char *if_name,const char *key,
         END_DB_TXN(txn);
     }
 
-    /* Set the priority value to the instance*/
-    if(VTYSH_STR_EQ(key, MSTP_BRIDGE_PRIORITY)) {
-        ovsrec_mstp_instance_set_priority(mstp_row, &value, 1);
-    }
-
     /* Find the MSTP instance port entry matching with the port index */
     if( if_name != NULL) {
         for (i=0; i < mstp_row->n_mstp_instance_ports; i++) {
@@ -1574,7 +1581,7 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
     const struct ovsrec_vlan *vlan_row = NULL;
     struct ovsrec_vlan **vlans = NULL;
     int64_t mstp_old_inst_id = 0, *instId_list = NULL;
-    int i = 0, j = 0;
+    int i = 0, j = 0, k = 0;
 
     int vlan_id =(vlanid)? atoi(vlanid):MSTP_INVALID_ID;
 
@@ -1666,6 +1673,13 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
             if (bridge_row->key_mstp_instances[i] != instid) {
                 instId_list[j] = bridge_row->key_mstp_instances[i];
                 mstp_info[j++] = bridge_row->value_mstp_instances[i];
+            }
+            else {
+                /* All mapped vlans from the deleted instance need to move to CIST*/
+                mstp_inst_row = bridge_row->value_mstp_instances[i];
+                for (k=0; k<mstp_inst_row->n_vlans; k++) {
+                    mstp_update_cist_vlans(mstp_inst_row->vlans[k], true);
+                }
             }
         }
 

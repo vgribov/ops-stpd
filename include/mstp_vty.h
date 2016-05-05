@@ -30,6 +30,8 @@
 #define MSTP_MSTID_MIN              1
 #define MSTP_MSTID_MAX              64
 #define MSTP_MAX_CONFIG_NAME_LEN    32
+#define MSTP_BRIDGE_PRIORITY_MULTIPLIER 4096
+#define MSTP_PORT_PRIORITY_MULTIPLIER 16
 
 #define MSTP_VALID_MSTID(mstid) \
     (((mstid) >= MSTP_MSTID_MIN) && ((mstid) <= MSTP_MSTID_MAX))

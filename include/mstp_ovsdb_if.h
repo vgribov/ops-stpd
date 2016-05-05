@@ -229,7 +229,7 @@ struct iface_data *find_iface_data_by_index(int index);
 struct iface_data *find_iface_data_by_name(char *name);
 const char * intf_get_mac_addr(uint16_t lport);
 const char* system_get_mac_addr(void);
-void update_mstp_tx_counters();
+void update_mstp_counters(LPORT_t lport, const char *key);
 int mstp_cist_config_update();
 int mstp_cist_port_config_update();
 int mstp_msti_update_config();
