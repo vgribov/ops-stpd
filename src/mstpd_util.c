@@ -4613,7 +4613,7 @@ mstp_txMstp(LPORT_t lport)
     * NOTE: Octets 26 and 27 convey the CIST Port Identifier of the
     *       transmitting Bridge Port
     *       (802.1Q-REV/D5.0 14.6 k)) */
-   storeShortInPacket(&bpdu->cistPortId, cistPortPtr->portId << 8);
+   storeShortInPacket(&bpdu->cistPortId, cistPortPtr->portId);
 
    /*------------------------------------------------------------------------
     * set CIST port role.

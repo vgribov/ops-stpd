@@ -136,7 +136,7 @@ struct port_data {
 
 int allocate_next(unsigned char *pool, int size);
 void allocate_reserved_id(unsigned char *pool);
-static void free_index(unsigned char *pool, int idx);
+void free_index(unsigned char *pool, int idx);
 
 POOL(port_index, MAX_ENTRIES_IN_POOL);
 
@@ -173,6 +173,25 @@ allocate_next(unsigned char *pool, int size)
 
     return -1;
 } /* allocate_next */
+
+int allocate_static_index(char *name)
+{
+    const struct ovsrec_interface *intf_row = NULL;
+    const char *intf_id = NULL;
+    int lport_id = 0;
+    OVSREC_INTERFACE_FOR_EACH(intf_row,idl)
+    {
+        if (intf_row && (strcmp(intf_row->name,name)== 0))
+        {
+            intf_id = smap_get(&intf_row->hw_intf_info,"switch_intf_id");
+            if (intf_id)
+            {
+                lport_id = atoi(intf_id);
+            }
+        }
+    }
+    return lport_id;
+}
 
 /**PROC+**********************************************************************
  * Name:     allocate_reserved_id
@@ -213,7 +232,7 @@ allocate_reserved_id(unsigned char *pool)
  **PROC-**********************************************************************/
 
 
-static void
+void
 free_index(unsigned char *pool, int idx)
 {
     CLEAR(pool, idx);
@@ -905,7 +924,6 @@ del_old_interface(struct shash_node *sh_node)
     if (sh_node) {
         struct iface_data *idp = sh_node->data;
         free(idp->name);
-        free_index(port_index, idp->lport_id);
         idp_lookup[idp->lport_id] = NULL;
         free(idp);
         shash_delete(&all_interfaces, sh_node);
@@ -937,7 +955,8 @@ add_new_interface(const struct ovsrec_interface *ifrow)
         idp->name = xstrdup(ifrow->name);
 
         /* Allocate interface index. */
-        idp->lport_id = allocate_next(port_index, MAX_ENTRIES_IN_POOL);
+        idp->lport_id = allocate_static_index(ifrow->name);
+        //idp->lport_id = allocate_next(port_index, MAX_ENTRIES_IN_POOL);
         if (idp->lport_id <= 0) {
             VLOG_ERR("Invalid interface index=%d", idp->lport_id);
         }
@@ -1083,6 +1102,10 @@ update_interface_cache(void)
                 if (!(strcmp(ifrow->link_state, OVSREC_INTERFACE_LINK_STATE_UP))) {
                     new_link_state = INTERFACE_LINK_STATE_UP;
                 }
+            }
+            if (ifrow->n_link_speed > 0) {
+                /* There should only be one speed. */
+                idp->link_speed = INTF_TO_MSTP_LINK_SPEED(ifrow->link_speed[0]);
             }
 
             if ((new_link_state != idp->link_state)) {

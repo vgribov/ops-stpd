@@ -132,7 +132,6 @@ mstpInitialInit(void)
    /* -----------------------------------------------------------------------
     * Initialize MSTP Control Block Data:
     * - initialize MSTP Control Block data held in 'mstp_CB'
-    * - create Semaphore for MSTP data protection
     * - create MSTP Control Task
     * - connect to other manager tasks that MSTP is going to communicate to
     * -----------------------------------------------------------------------*/
@@ -636,6 +635,128 @@ mstp_initCommonPortData(LPORT_t lport,bool init)
 
    return commPortPtr;
 }
+
+/**PROC+**********************************************************************
+ * Name:      mstp_clearBridgeTreesData
+ *
+ * Purpose:   Clear the data used by the CIST and the MSTIs.
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ * Globals:   none
+ *
+ **PROC-**********************************************************************/
+static void
+mstp_clearBridgeTreesData(void)
+{
+   MSTID_t mstid;
+   LPORT_t lport;
+
+   for(mstid = MSTP_MSTID_MIN; mstid <= MSTP_INSTANCES_MAX; mstid++)
+   {
+      if(MSTP_MSTI_INFO(mstid))
+      {
+         for(lport = 1; lport <= MAX_LPORTS; lport++)
+         {
+             if(MSTP_MSTI_PORT_PTR(mstid,lport))
+                 mstp_clearMstiPortData(mstid,lport);
+         }
+         mstp_clearBridgeMstiData(mstid);
+      }
+   }
+
+   for(lport = 1; lport <= MAX_LPORTS; lport++)
+   {
+      if(MSTP_CIST_PORT_PTR(lport))
+         mstp_clearCistPortData(lport);
+   }
+   mstp_clearBridgeCistData();
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstp_clearBridgeCistData
+ *
+ * Purpose:   Remove in-memory data structure allocated for the CIST.
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ * Globals:   none
+ *
+ * Constraints:
+ **PROC-**********************************************************************/
+void
+mstp_clearBridgeCistData() {
+       /*---------------------------------------------------------------------
+       * Clear CIST's VLAN IDs mapping data in the global 'mstp_MstiVidTable'
+       *---------------------------------------------------------------------*/
+      clear_vid_map(&mstp_MstiVidTable[MSTP_CISTID]);
+
+      /*---------------------------------------------------------------------
+       * Clear the CIST data
+       *---------------------------------------------------------------------*/
+      memset(&MSTP_CIST_INFO, 0, sizeof(MSTP_CIST_INFO));
+
+      MSTP_CIST_VALID = FALSE;
+      MSTP_NUM_OF_VALID_TREES--;
+}
+
+/**PROC+**********************************************************************
+ * Name:      mstp_clearBridgeMstiData
+ *
+ * Purpose:   Remove in-memory data structure allocated for the MSTI.
+ *
+ * Params:    mstid -> MST Instance Identifier
+ *
+ * Returns:   none
+ *
+ * Globals:   none
+ *
+ * Constraints:
+ **PROC-**********************************************************************/
+void
+mstp_clearBridgeMstiData(MSTID_t mstid) {
+    MSTP_TREE_MSG_t *m;
+    if(MSTP_MSTI_INFO(mstid) == NULL)
+        return;
+    /*---------------------------------------------------------------------
+     * VIDs that are removed from the MSTI should be mapped back to
+     * the CIST in the global 'mstp_MstiVidTable'.
+     *---------------------------------------------------------------------*/
+    bit_or_vid_maps(&mstp_MstiVidTable[mstid],
+            &mstp_MstiVidTable[MSTP_CISTID]);
+
+    /*---------------------------------------------------------------------
+     * Clear MSTI's VIDs mapping data in the global 'mstp_MstiVidTable'
+     *---------------------------------------------------------------------*/
+    clear_vid_map(&mstp_MstiVidTable[mstid]);
+    /*---------------------------------------------------------------------
+     * Decrement global counter of valid trees
+     *---------------------------------------------------------------------*/
+    MSTP_NUM_OF_VALID_TREES--;
+    /*--------------------------------------------------------------------
+     * If there is a pending message to other subsystems queued by this
+     * MSTI we need to remove it from the queue and free memory space,
+     * the message is not valid anymore.
+     *--------------------------------------------------------------------*/
+    m = mstp_findMstiPortStateChgMsg(mstid);
+    if(m != NULL)
+    {
+        remqhere_nodis(&MSTP_TREE_MSGS_QUEUE, &m->link);
+        free(m);
+    }
+
+    /*---------------------------------------------------------------------
+     * Free memory space allocated for the MSTI
+     *---------------------------------------------------------------------*/
+    free(MSTP_MSTI_INFO(mstid));
+    MSTP_MSTI_INFO(mstid) = NULL;
+
+}
+
 /**PROC+**********************************************************************
  * Name:      mstp_clearProtocolData
  *
@@ -654,7 +775,11 @@ mstp_initCommonPortData(LPORT_t lport,bool init)
 void
 mstp_clearProtocolData(void)
 {
-   STP_ASSERT(MSTP_ENABLED);
+    STP_ASSERT(MSTP_ENABLED);
+    /*------------------------------------------------------------------------
+     * clear the CIST and the MSTIs data
+     *------------------------------------------------------------------------*/
+    mstp_clearBridgeTreesData();
 
    /*------------------------------------------------------------------------
     * clear global Per-Bridge Variables and State Machine Performance
@@ -874,7 +999,6 @@ mstp_clearBridgeGlobalData(void)
     *------------------------------------------------------------------------*/
    mstp_Bridge.FwdDelay     = 0;
    mstp_Bridge.MigrateTime  = 0;
-   mstp_Bridge.ForceVersion = 0;
    mstp_Bridge.TxHoldCount  = 0;
    mstp_Bridge.MaxAge       = 0;
    mstp_Bridge.HelloTime    = 0;
@@ -1396,7 +1520,6 @@ mstp_initBridgeGlobalData(bool init)
  *
  * Purpose:   Initialize MSTP Control Data, that is
  *             - initialize MSTP Control Block data
- *             - create Semaphore for MSTP data protection
  *             - create MSTP Control Task
  *             - connect to other manager tasks that MSTP is going to
  *               communicate to

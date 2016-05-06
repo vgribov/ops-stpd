@@ -47,7 +47,7 @@ typedef uint32_t IFINDEX_t;      /* interface index for end-points           */
 typedef uint16_t TYP_LEN;
 typedef uint8_t OCTET;
 
-#define MAX_LPORTS 256
+#define MAX_LPORTS 512
 #define MAX_ENTRIES_IN_POOL MAX_LPORTS
 #define MAX_VLAN_ID 4095
 #define MIN_VLAN_ID 1
@@ -56,6 +56,7 @@ typedef uint8_t OCTET;
 #define SIZEOF_LSAP_HDR 17
 #define SIZEOF_ENET_HDR 14
 #define PRIORITY_MULTIPLIER 4096
+#define PORT_PRIORITY_MULTIPLIER 16
 
 #define IS_VALID_LPORT(lport) ((lport >= 1) && (lport <= MAX_LPORTS))
 #define INTERNAL_VID (0x0fff) /* 4095 */
@@ -1759,12 +1760,12 @@ typedef struct MSTP_MESSAGES_t
 #pragma pack(push,1)
 typedef struct MSTP_MST_CONFIGURATION_ID_t
 {
-   uint8_t   formatSelector PACKED; /* the value 0 is encoded */
-   uint8_t   configName[MSTP_MST_CONFIG_NAME_LEN] PACKED; /* variable length
+   uint8_t   formatSelector; /* the value 0 is encoded */
+   uint8_t   configName[MSTP_MST_CONFIG_NAME_LEN]; /* variable length
                           * octet string encoded within a fixed field of 32
                           * octets */
-   uint16_t revisionLevel PACKED; /* the Revision Level */
-   uint8_t   digest[MSTP_DIGEST_SIZE] PACKED; /* HMAC-MD5 signature created
+   uint16_t revisionLevel; /* the Revision Level */
+   uint8_t   digest[MSTP_DIGEST_SIZE]; /* HMAC-MD5 signature created
                           * from MST Configuration Table with the
                           * 'mstp_DigestSignatureKey' used as the key value */
 
@@ -1777,14 +1778,12 @@ typedef struct MSTP_MST_CONFIGURATION_ID_t
  *       use for priority value, the other 12 bits comprise a locally assigned
  *       system ID extensions.
  *---------------------------------------------------------------------------*/
-#pragma pack(push,1)
 typedef struct MSTP_BRIDGE_IDENTIFIER_t
 {
    uint16_t      priority;
    MAC_ADDRESS   mac_address;
 
 } MSTP_BRIDGE_IDENTIFIER_t;
-#pragma pack(pop)
 
 /*---------------------------------------------------------------------------
  * Bridge Identifiers used by STP, RSTP (identical to MSTP)
@@ -3110,10 +3109,10 @@ typedef struct MSTP_CFG_BPDU_t
  *---------------------------------------------------------------------------*/
 typedef struct MSTP_TCN_BPDU_t
 {
-   LSAP_HDR                 lsapHdr          PACKED;
-   uint16_t                 protocolId        PACKED;
-   uint8_t                   protocolVersionId PACKED;
-   uint8_t                   bpduType          PACKED;
+   LSAP_HDR                 lsapHdr;
+   uint16_t                 protocolId;
+   uint8_t                   protocolVersionId;
+   uint8_t                   bpduType;
 
 } MSTP_TCN_BPDU_t;
 
@@ -3130,20 +3129,20 @@ typedef MSTP_TCN_BPDU_t MSTP_BPDU_COMMON_HEADER_t;
  *---------------------------------------------------------------------------*/
 typedef struct MSTP_RST_BPDU_t
 {
-   LSAP_HDR                 lsapHdr           PACKED;
-   uint16_t                 protocolId        PACKED;
-   uint8_t                   protocolVersionId PACKED;
-   uint8_t                   bpduType          PACKED;
-   uint8_t                   flags             PACKED;
-   RSTP_BRIDGE_IDENTIFIER_t rootId            PACKED;
-   uint32_t                 rootPathCost      PACKED;
-   RSTP_BRIDGE_IDENTIFIER_t bridgeId          PACKED;
-   uint16_t                 portId            PACKED;
-   uint16_t                 msgAge            PACKED;
-   uint16_t                 maxAge            PACKED;
-   uint16_t                 helloTime         PACKED;
-   uint16_t                 fwdDelay          PACKED;
-   uint8_t                   version1Length    PACKED;
+   LSAP_HDR                 lsapHdr;
+   uint16_t                 protocolId;
+   uint8_t                   protocolVersionId;
+   uint8_t                   bpduType;
+   uint8_t                   flags;
+   RSTP_BRIDGE_IDENTIFIER_t rootId;
+   uint32_t                 rootPathCost;
+   RSTP_BRIDGE_IDENTIFIER_t bridgeId;
+   uint16_t                 portId;
+   uint16_t                 msgAge;
+   uint16_t                 maxAge;
+   uint16_t                 helloTime;
+   uint16_t                 fwdDelay;
+   uint8_t                   version1Length;
 
 } MSTP_RST_BPDU_t;
 
@@ -3157,28 +3156,28 @@ typedef struct MSTP_RST_BPDU_t
 typedef struct MSTP_MST_BPDU_t
 {
    /* STP & RSTP & MSTP common parameters */
-   LSAP_HDR                    lsapHdr             PACKED;
-   uint16_t                    protocolId          PACKED;
-   uint8_t                      protocolVersionId   PACKED;
-   uint8_t                      bpduType            PACKED;
-   uint8_t                      cistFlags           PACKED;
-   MSTP_BRIDGE_IDENTIFIER_t    cistRootId          PACKED;
-   uint32_t                    cistExtPathCost     PACKED;
-   MSTP_BRIDGE_IDENTIFIER_t    cistRgnRootId       PACKED;
-   uint16_t                    cistPortId          PACKED;
-   uint16_t                    msgAge              PACKED;
-   uint16_t                    maxAge              PACKED;
-   uint16_t                    helloTime           PACKED;
-   uint16_t                    fwdDelay            PACKED;
+   LSAP_HDR                    lsapHdr;
+   uint16_t                    protocolId;
+   uint8_t                      protocolVersionId;
+   uint8_t                      bpduType;
+   uint8_t                      cistFlags;
+   MSTP_BRIDGE_IDENTIFIER_t    cistRootId;
+   uint32_t                    cistExtPathCost;
+   MSTP_BRIDGE_IDENTIFIER_t    cistRgnRootId;
+   uint16_t                    cistPortId;
+   uint16_t                    msgAge;
+   uint16_t                    maxAge;
+   uint16_t                    helloTime;
+   uint16_t                    fwdDelay;
    /* RSTP & MSTP common parameters */
-   uint8_t                      version1Length      PACKED;
+   uint8_t                      version1Length;
    /* MSTP only specific parameters */
-   uint16_t                    version3Length      PACKED;
-   MSTP_MST_CONFIGURATION_ID_t mstConfigurationId  PACKED;
-   uint32_t                    cistIntRootPathCost PACKED;
-   MSTP_BRIDGE_IDENTIFIER_t    cistBridgeId        PACKED;
-   uint8_t                      cistRemainingHops   PACKED;
-   uint8_t                      mstiConfigMsgs[1]   PACKED;
+   uint16_t                    version3Length;
+   MSTP_MST_CONFIGURATION_ID_t mstConfigurationId;
+   uint32_t                    cistIntRootPathCost;
+   MSTP_BRIDGE_IDENTIFIER_t    cistBridgeId;
+   uint8_t                      cistRemainingHops;
+   uint8_t                      mstiConfigMsgs[1];
 
 } MSTP_MST_BPDU_t;
 
@@ -3188,12 +3187,12 @@ typedef struct MSTP_MST_BPDU_t
  *---------------------------------------------------------------------------*/
 typedef struct MSTP_MSTI_CONFIG_MSG_t
 {
-   uint8_t                   mstiFlags           PACKED;
-   MSTP_BRIDGE_IDENTIFIER_t mstiRgnRootId       PACKED;
-   uint32_t                 mstiIntRootPathCost PACKED;
-   uint8_t                   mstiBridgePriority  PACKED;
-   uint8_t                   mstiPortPriority    PACKED;
-   uint8_t                   mstiRemainingHops   PACKED;
+   uint8_t                   mstiFlags;
+   MSTP_BRIDGE_IDENTIFIER_t mstiRgnRootId;
+   uint32_t                 mstiIntRootPathCost;
+   uint8_t                   mstiBridgePriority;
+   uint8_t                   mstiPortPriority;
+   uint8_t                   mstiRemainingHops;
 
 } MSTP_MSTI_CONFIG_MSG_t;
 #pragma pack(pop)
@@ -3331,6 +3330,7 @@ void mstp_clearProtocolData(void);
 void mstp_clearBridgeMstiData(MSTID_t mstid);
 void mstp_clearMstiPortData(MSTID_t mstid, LPORT_t lport);
 void mstp_clearCistPortData(LPORT_t lport);
+void mstp_clearBridgeCistData(void);
 void mstp_clearCommonPortData(LPORT_t lport);
 void mstp_clearMstpToOthersMessageQueue(void);
 void mstp_clearMstpToOthersMessageQueue(void);
