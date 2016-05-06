@@ -36,6 +36,7 @@
 
 #include "mstp_fsm.h"
 #include "mstp_recv.h"
+#include "mstp_ovsdb_if.h"
 #include "mstp_inlines.h"
 
 VLOG_DEFINE_THIS_MODULE(mstpd_dyn_reconfig);
@@ -47,7 +48,7 @@ VLOG_DEFINE_THIS_MODULE(mstpd_dyn_reconfig);
  *     Global Functions (externed)                                           *
  *                                                                           *
  ** ======================================================================= **/
-
+static void mstp_updatePortStateToForward();
 /**PROC+**********************************************************************
  * Name:      mstp_addLport
  *
@@ -313,23 +314,10 @@ mstp_adminStatusUpdate(int status)
    else
    if((Spanning == TRUE) && (status == FALSE))
    {/* the protocol has been disabled, clear MSTP data */
-      PORT_MAP set_fwd_pmap;
-
-      /*---------------------------------------------------------------------
-       * MSTP is going to be disabled and no longer maintain the state of the
-       * ports on the switch. Those ports that are not administratively
-       * disabled AND are not in FORWARDING state because of the MSTP need to
-       * be set back to FORWARDING on the switch. Collect all MSTP ports that
-       * are currently not in FORWARDING state to the one port map.
-       *---------------------------------------------------------------------*/
-      mstp_collectNotForwardingPorts(&set_fwd_pmap);
-
       /*---------------------------------------------------------------------
        * clear in-memory data used by MSTP
        *---------------------------------------------------------------------*/
       mstp_clearProtocolData();
-
-      STP_ASSERT(MSTP_NUM_OF_VALID_TREES == 0);
 
       /*---------------------------------------------------------------------
        * indicate that MSTP protocol is not initialized
@@ -340,13 +328,9 @@ mstp_adminStatusUpdate(int status)
        *---------------------------------------------------------------------*/
       mstp_clearMstpToOthersMessageQueue();
       /*---------------------------------------------------------------------
-       * Inform DB that some ports need to be restored back
-       * to the FORWARDING state.
-       *---------------------------------------------------------------------*/
-      if(are_any_ports_set(&set_fwd_pmap))
-      {
-//         mstp_blockedPortsBackToForward(&set_fwd_pmap);
-      }
+       * Put the Ports back into the Forward State
+       *--------------------------------------------------------------------*/
+      mstp_updatePortStateToForward();
       /*----------------------------------------------------------------------
        * clear portmaps used to keep track of lports MSTP has told DB are
        * forwarding or blocked (used to escape message flooding when MSTP
@@ -354,6 +338,7 @@ mstp_adminStatusUpdate(int status)
        *---------------------------------------------------------------------*/
       clear_port_map(&MSTP_FWD_LPORTS);
       clear_port_map(&MSTP_BLK_LPORTS);
+      mstp_config_reinit();
 
       /*---------------------------------------------------------------------
        * log VLOG message
@@ -362,6 +347,56 @@ mstp_adminStatusUpdate(int status)
       MSTP_PRINTF_EVENT("Spanning Tree Protocol disabled");
    }
 }
+/**PROC+**********************************************************************
+ * Name:      mstp_updatePortStateToForward
+ *
+ * Purpose:   To put all the L2 Ports into Forwarding State.
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ * Globals:   none
+ *
+ * Constraints:
+ **PROC-**********************************************************************/
+void mstp_updatePortStateToForward()
+{
+    struct ovsdb_idl_txn *txn = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    const struct ovsrec_mstp_instance *mstp_row = NULL;
+    const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
+    int mstid = 0, port_id = 0;
+    bridge_row = ovsrec_bridge_first(idl);
+    txn = ovsdb_idl_txn_create(idl);
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl)
+    {
+        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row,MSTP_STATE_FORWARD);
+    }
+    for (mstid=0; mstid < bridge_row->n_mstp_instances; mstid++) {
+        mstp_row = bridge_row->value_mstp_instances[mstid];
+        if(!mstp_row) {
+            assert(0);
+            return;
+        }
+
+        /* MSTP instance port clean */
+        for (port_id=0; port_id < mstp_row->n_mstp_instance_ports; port_id++) {
+            mstp_port_row = mstp_row->mstp_instance_ports[port_id];
+            if(!mstp_port_row) {
+                assert(0);
+                return;
+            }
+            ovsrec_mstp_instance_port_set_port_state( mstp_port_row, MSTP_STATE_FORWARD);
+        }
+    }
+    ovsdb_idl_txn_commit_block(txn);
+    ovsdb_idl_txn_destroy(txn);
+    return;
+}
+
+
 /**PROC+**********************************************************************
  * Name:      mstp_updateMstiVidMapping
  *
