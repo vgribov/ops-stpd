@@ -8015,8 +8015,8 @@ mstp_findMstiCfgMsgInBpdu(MSTP_RX_PDU *pkt, MSTID_t mstid)
    MSTP_MST_BPDU_t        *bpdu          = NULL;
    MSTP_MSTI_CONFIG_MSG_t *mstiCfgMsgPtr = NULL;
    char                   *end           = NULL;
-   int                     len           = NULL;
-   MSTID_t                 sysid         = NULL;
+   int                     len           = 0;
+   MSTID_t                 sysid         = 0;
    bool                   found         = FALSE;
 
    STP_ASSERT(pkt);
