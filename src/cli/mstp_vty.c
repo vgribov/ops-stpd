@@ -2775,6 +2775,8 @@ DEFUN(show_spanning_mst_inst_intf,
 void
 cli_pre_init() {
 
+    vtysh_ret_val retval = e_vtysh_error;
+
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_instances);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_common_instance);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_enable);
@@ -2869,6 +2871,17 @@ cli_pre_init() {
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_port_col_oper_edge_port);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_port_col_restricted_port_role_disable);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_port_col_port_state);
+
+    retval = install_show_run_config_context(e_vtysh_mstp_context,
+                            &vtysh_mstp_context_clientcallback,
+                            NULL, NULL);
+
+    if(e_vtysh_ok != retval)
+    {
+        vtysh_ovsdb_config_logmsg(VTYSH_OVSDB_CONFIG_ERR,
+                "Unable to add MSTP context callback");
+        assert(0);
+    }
 }
 
 /*-----------------------------------------------------------------------------
@@ -2939,18 +2952,6 @@ void cli_post_init(void) {
     install_element(ENABLE_NODE, &show_spanning_mst_inst_intf_cmd);
     install_element(ENABLE_NODE, &show_mstp_config_cmd);
     install_element(ENABLE_NODE, &show_running_config_mstp_cmd);
-
-    retval = install_show_run_config_subcontext(e_vtysh_config_context,
-                            e_vtysh_config_context_mstp,
-                            &vtysh_config_context_mstp_clientcallback,
-                            NULL, NULL);
-
-    if(e_vtysh_ok != retval)
-    {
-        vtysh_ovsdb_config_logmsg(VTYSH_OVSDB_CONFIG_ERR,
-                "MSTP context unable to add config callback");
-        assert(0);
-    }
 
     retval = install_show_run_config_subcontext(e_vtysh_interface_context,
                             e_vtysh_interface_context_mstp,

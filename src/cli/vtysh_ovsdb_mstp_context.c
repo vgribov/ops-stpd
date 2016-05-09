@@ -49,6 +49,10 @@ vtysh_ovsdb_parse_mstp_global_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
     const char *data = NULL;
     size_t i = 0, j = 0;
 
+    if(!p_msg) {
+        return e_vtysh_error;
+    }
+
     system_row = ovsrec_system_first(p_msg->idl);
     if (!system_row) {
         return e_vtysh_error;
@@ -78,7 +82,8 @@ vtysh_ovsdb_parse_mstp_global_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
         for (i=0; i < bridge_row->n_mstp_instances; i++) {
             mstp_row = bridge_row->value_mstp_instances[i];
             if(!mstp_row) {
-                continue;
+                assert(0);
+                return e_vtysh_error;
             }
 
             /* Loop for all vlans in one MST instance table */
@@ -152,6 +157,10 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
     int i = 0, j = 0;
 
     ifrow = (struct ovsrec_interface *)p_msg->feature_row;
+    if(!ifrow) {
+        assert(0);
+        return e_vtysh_error;
+    }
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, p_msg->idl) {
         if(!cist_port->port) {
@@ -197,17 +206,26 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
     }
 
     bridge_row = ovsrec_bridge_first(p_msg->idl);
-    if (bridge_row) {
+    if (!bridge_row) {
+        assert(0);
         return e_vtysh_ok;
     }
 
     /* Loop for all instance in bridge table */
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
         mstp_row = bridge_row->value_mstp_instances[i];
+        if(!mstp_row) {
+            assert(0);
+            return e_vtysh_error;
+        }
 
         /* Loop for all ports in the MSTP instance table */
         for (j=0; j<mstp_row->n_mstp_instance_ports; j++) {
             mstp_port_row = mstp_row->mstp_instance_ports[j];
+            if(!mstp_port_row) {
+                assert(0);
+                return e_vtysh_error;
+            }
             if (VTYSH_STR_EQ(mstp_port_row->port->name, ifrow->name)) {
                 if (mstp_port_row->port_priority &&
                    (*mstp_port_row->port_priority != DEF_MSTP_PORT_PRIORITY)) {
@@ -238,7 +256,7 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
  | Return:
  ------------------------------------------------------------------------------
  */
-vtysh_ret_val vtysh_config_context_mstp_clientcallback(void *p_private) {
+vtysh_ret_val vtysh_mstp_context_clientcallback(void *p_private) {
     vtysh_ovsdb_cbmsg_ptr p_msg = (vtysh_ovsdb_cbmsg *)p_private;
 
     vtysh_ovsdb_parse_mstp_global_config(p_msg);
