@@ -315,6 +315,7 @@ cli_show_spanning_tree_config(bool detail) {
     }
 
     if(cist_row->designated_root) {
+        memset(root_mac, 0, sizeof(root_mac));
         sscanf(cist_row->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
     }
 
@@ -491,6 +492,8 @@ mstp_show_common_instance_info(
     struct shash sorted_port_id;
     char str[15] = {0};
     int64_t count = 0;
+    char root_mac[OPS_MAC_STR_SIZE] = {0};
+    int priority = 0, sys_id = 0;
 
     system_row = ovsrec_system_first(idl);
     if (!system_row) {
@@ -525,12 +528,24 @@ mstp_show_common_instance_info(
             system_row->system_mac, "priority",
             ((*cist_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
-    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->designated_root)) {
-        vty_out(vty, "%-14s%s", "Root", VTY_NEWLINE);
+    if(cist_row->designated_root) {
+        memset(root_mac, 0, sizeof(root_mac));
+        sscanf(cist_row->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
+        if (VTYSH_STR_EQ(system_row->system_mac, root_mac)) {
+            vty_out(vty, "%-14s%s", "Root", VTY_NEWLINE);
+        }
     }
-    if (VTYSH_STR_EQ(system_row->system_mac, cist_row->regional_root)) {
-        vty_out(vty, "%-14s%s", "Regional Root", VTY_NEWLINE);
+
+
+    if(cist_row->regional_root) {
+        memset(root_mac, 0, sizeof(root_mac));
+        sscanf(cist_row->regional_root, "%d.%d.%s", &priority, &sys_id, root_mac);
+        if (VTYSH_STR_EQ(system_row->system_mac, root_mac)) {
+            vty_out(vty, "%-14s%s", "Regional Root", VTY_NEWLINE);
+        }
     }
+
+
     vty_out(vty, "%-14s %s:%2ld  %s:%2ld  %s:%2ld  %s:%2ld%s", "Operational",
             "Hello time(in seconds)",
             (cist_row->oper_hello_time)?*cist_row->oper_hello_time:DEF_HELLO_TIME,
@@ -607,6 +622,8 @@ mstp_show_common_instance_port_info(
         const struct ovsrec_mstp_common_instance_port *cist_port) {
 
     const struct ovsrec_system *system_row = NULL;
+    char root_mac[OPS_MAC_STR_SIZE] = {0};
+    int priority = 0, sys_id = 0;
 
     system_row = ovsrec_system_first(idl);
     if (!system_row) {
@@ -615,10 +632,22 @@ mstp_show_common_instance_port_info(
     }
 
     vty_out(vty, "%sPort %s%s", VTY_NEWLINE, cist_port->port->name, VTY_NEWLINE);
+
+    if(cist_port->designated_root) {
+        memset(root_mac, 0, sizeof(root_mac));
+        sscanf(cist_port->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
+    }
+
     vty_out(vty, "%-35s: %s%s", "Designated root address",
-                 cist_port->designated_root, VTY_NEWLINE);
+                 root_mac, VTY_NEWLINE);
+
+    if(cist_port->cist_regional_root_id) {
+        memset(root_mac, 0, sizeof(root_mac));
+        sscanf(cist_port->cist_regional_root_id, "%d.%d.%s", &priority, &sys_id, root_mac);
+    }
+
     vty_out(vty, "%-35s: %s%s", "Designated regional root address",
-                 cist_port->cist_regional_root_id, VTY_NEWLINE);
+                 root_mac, VTY_NEWLINE);
     vty_out(vty, "%-35s: %s%s", "Designated bridge address",
                  cist_port->designated_bridge, VTY_NEWLINE);
 
