@@ -1236,6 +1236,27 @@ cli_show_mstp_intf_config() {
             vty_out(vty, "%4s%s%s", "", "spanning-tree port-type admin-edge",
                                                         VTY_NEWLINE);
         }
+        if (cist_port_row->admin_path_cost &&
+                *cist_port_row->admin_path_cost != DEF_MSTP_COST) {
+            if (if_print) {
+                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
+                                                                VTY_NEWLINE);
+                if_print = false;
+            }
+            vty_out(vty, "%4s%s %ld%s", "", "spanning-tree cost",
+                    *cist_port_row->admin_path_cost, VTY_NEWLINE);
+        }
+        if (cist_port_row->port_priority &&
+                *cist_port_row->port_priority != DEF_MSTP_PORT_PRIORITY) {
+            if (if_print) {
+                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
+                                                                VTY_NEWLINE);
+                if_print = false;
+            }
+            vty_out(vty, "%4s%s %ld%s", "", "spanning-tree port-priority",
+                                 *cist_port_row->port_priority, VTY_NEWLINE);
+        }
+
         for (j=0; j < bridge_row->n_mstp_instances; j++) {
             mstp_row = bridge_row->value_mstp_instances[j];
 
@@ -1299,6 +1320,58 @@ cli_show_mstp_running_config() {
 
     /* Inerface level configuration of MSTP */
     cli_show_mstp_intf_config();
+}
+
+/*-----------------------------------------------------------------------------
+ | Function:        mstp_cli_set_string_cist_port_table
+ | Responsibility:  Sets the common instance port table config paramters
+ | Parameters:
+ |      if_name:    Interface nameh
+ |      key:        Common instance port column name
+ |      value:      Value to be set for the corresponding CIST port column
+ | Return:
+ |      CMD_SUCCESS:Config executed successfully.
+ |      CMD_OVSDB_FAILURE - DB failure.
+ ------------------------------------------------------------------------------
+ */
+static int
+mstp_cli_set_string_cist_port_table (const char *if_name, const char *key,
+                                     const int64_t value) {
+
+    struct ovsdb_idl_txn *txn = NULL;
+    const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+
+    if((!if_name) || (!key)) {
+        VLOG_DBG("Invalid Input %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+        return CMD_OVSDB_FAILURE;
+    }
+
+    START_DB_TXN(txn);
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
+        if(!cist_port_row->port) {
+            VLOG_DBG("NO CIST Port found %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+            continue;
+        }
+        if (VTYSH_STR_EQ(cist_port_row->port->name, if_name)) {
+            break;
+        }
+    }
+
+    if (!cist_port_row) {
+        ERRONEOUS_DB_TXN(txn, "No record found");
+    }
+
+    if (VTYSH_STR_EQ(key, MSTP_PORT_PRIORITY)) {
+        ovsrec_mstp_common_instance_port_set_port_priority(cist_port_row,
+                                                           &value, 1);
+    }
+    else if (VTYSH_STR_EQ(key, MSTP_PORT_COST)) {
+        ovsrec_mstp_common_instance_port_set_admin_path_cost(cist_port_row,
+                                                             &value, 1);
+    }
+
+    /* End of transaction. */
+    END_DB_TXN(txn);
 }
 
 /*-----------------------------------------------------------------------------
@@ -2311,6 +2384,52 @@ DEFUN(cli_no_mstp_bpdu,
     return CMD_SUCCESS;
 }
 
+DEFUN(cli_mstp_port_priority,
+      cli_mstp_port_priority_cmd,
+      "spanning-tree port-priority <0-15>",
+      SPAN_TREE
+      PORT_PRIORITY
+      "Enter an integer number (Default: 8)\n") {
+
+    mstp_cli_set_string_cist_port_table(vty->index, MSTP_PORT_PRIORITY, atoi(argv[0]));
+    return CMD_SUCCESS;
+}
+
+DEFUN(cli_no_mstp_port_priority,
+      cli_no_mstp_port_priority_cmd,
+      "no spanning-tree port-priority {<0-15>}",
+      NO_STR
+      SPAN_TREE
+      PORT_PRIORITY
+      "Enter an integer number (Default: 8)\n") {
+
+    mstp_cli_set_string_cist_port_table(vty->index, MSTP_PORT_PRIORITY, DEF_MSTP_PORT_PRIORITY);
+    return CMD_SUCCESS;
+}
+
+DEFUN(cli_mstp_cost,
+      cli_mstp_cost_cmd,
+      "spanning-tree cost <0-200000000>",
+      SPAN_TREE
+      "Specify a standard to use when calculating the default pathcost"
+      "Enter an integer number (Default: 0)\n") {
+
+    mstp_cli_set_string_cist_port_table(vty->index, MSTP_PORT_COST, atoi(argv[0]));
+    return CMD_SUCCESS;
+}
+
+DEFUN(cli_no_mstp_cost,
+      cli_no_mstp_cost_cmd,
+      "no spanning-tree cost {<0-200000000>}",
+      NO_STR
+      SPAN_TREE
+      "Specify a standard to use when calculating the default pathcost"
+      "Enter an integer number (Default: 0)\n") {
+
+    mstp_cli_set_string_cist_port_table(vty->index, MSTP_PORT_COST, DEF_MSTP_COST);
+    return CMD_SUCCESS;
+}
+
 DEFUN(cli_mstp_bridge_priority,
       cli_mstp_bridge_priority_cmd,
       "spanning-tree priority <0-15>",
@@ -2369,7 +2488,7 @@ DEFUN(cli_mstp_inst_cost,
       MST_INST
       "Enter an integer number\n"
       "Specify a standard to use when calculating the default pathcost"
-      "Enter an integer number (Default: 20000)\n") {
+      "Enter an integer number (Default: 0)\n") {
 
     mstp_cli_set_mst_inst(vty->index, MSTP_PORT_COST, atoi(argv[0]), atoi(argv[1]));
     return CMD_SUCCESS;
@@ -2383,7 +2502,7 @@ DEFUN(cli_no_mstp_inst_cost,
       MST_INST
       "Enter an integer number\n"
       "Specify a standard to use when calculating the default pathcost"
-      "Enter an integer number (Default: 20000)\n") {
+      "Enter an integer number (Default: 0)\n") {
 
     mstp_cli_set_mst_inst(vty->index, MSTP_PORT_COST, atoi(argv[0]),
                                                   DEF_MSTP_COST);
@@ -2794,6 +2913,10 @@ void cli_post_init(void) {
     install_element(INTERFACE_NODE, &cli_mstp_port_type_cmd);
     install_element(INTERFACE_NODE, &cli_no_mstp_port_type_admin_cmd);
     install_element(INTERFACE_NODE, &cli_no_mstp_port_type_cmd);
+    install_element(INTERFACE_NODE, &cli_mstp_port_priority_cmd);
+    install_element(INTERFACE_NODE, &cli_no_mstp_port_priority_cmd);
+    install_element(INTERFACE_NODE, &cli_mstp_cost_cmd);
+    install_element(INTERFACE_NODE, &cli_no_mstp_cost_cmd);
 
     /* MSTP Inst Table */
     install_element(CONFIG_NODE, &cli_mstp_inst_vlanid_cmd);

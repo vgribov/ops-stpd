@@ -69,7 +69,7 @@ typedef enum mstp_flags
 #define DEF_MAX_HOPS                 20
 #define DEF_CONFIG_REV               "0"
 #define DEF_MSTP_PORT_PRIORITY       8
-#define DEF_MSTP_COST                20000
+#define DEF_MSTP_COST                0
 #define DEF_LINK_TYPE                "point_to_point"
 
 /*********** MSTP_CONFIG OF BRIDGE TABLE **************************/

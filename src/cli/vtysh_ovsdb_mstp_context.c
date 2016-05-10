@@ -154,6 +154,9 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
     ifrow = (struct ovsrec_interface *)p_msg->feature_row;
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, p_msg->idl) {
+        if(!cist_port->port) {
+            continue;
+        }
         if (VTYSH_STR_EQ(cist_port->port->name, ifrow->name)) {
             if (cist_port->loop_guard_disable &&
                     *cist_port->loop_guard_disable != DEF_BPDU_STATUS) {
@@ -179,6 +182,16 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
                   *cist_port->admin_edge_port_disable != DEF_ADMIN_EDGE) {
                 vtysh_ovsdb_cli_print(p_msg, "%4s%s", "",
                           "spanning-tree port-type admin-edge");
+            }
+            if (cist_port->port_priority &&
+                    *cist_port->port_priority != DEF_MSTP_PORT_PRIORITY) {
+                vtysh_ovsdb_cli_print(p_msg, "%4s%s %ld", "",
+                        "spanning-tree port-priority", *cist_port->port_priority);
+            }
+            if (cist_port->admin_path_cost &&
+                    *cist_port->admin_path_cost != DEF_MSTP_COST) {
+                vtysh_ovsdb_cli_print(p_msg, "%4s%s %ld", "",
+                        "spanning-tree cost", *cist_port->admin_path_cost);
             }
         }
     }
