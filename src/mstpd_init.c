@@ -158,10 +158,6 @@ mstpInitialInit(void)
 void
 mstp_initMstiVlanTables(void)
 {
-   /* Clear VIDs mapping for all MSTIs */
-   memset(mstp_MstiVidTable, 0x00, sizeof(mstp_MstiVidTable));
-   /* Map all VIDs to the CIST */
-   MSTP_ADD_ALL_VIDS_TO_VIDMAP(&mstp_MstiVidTable[MSTP_CISTID]);
 
    /*------------------------------------------------------------------------
     * Build initial value for the 'digest' component of the Bridge's MST
@@ -1545,4 +1541,8 @@ mstp_initControlData(void)
     * initialize trees change message queue.
     *------------------------------------------------------------------------*/
    inique(&MSTP_TREE_MSGS_QUEUE);
+   /* Clear VIDs mapping for all MSTIs */
+   memset(mstp_MstiVidTable, 0x00, sizeof(mstp_MstiVidTable));
+   /* Map all VIDs to the CIST */
+   MSTP_ADD_ALL_VIDS_TO_VIDMAP(&mstp_MstiVidTable[MSTP_CISTID]);
 }

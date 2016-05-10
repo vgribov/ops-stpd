@@ -950,15 +950,6 @@ void update_mstp_cist_config(mstpd_message *pmsg)
 
     MSTP_CIST_VALID = TRUE;
 
-    if (!are_vidmaps_equal(&mstp_MstiVidTable[MSTP_CISTID],&cist_config->vlans))
-    {
-        copy_vid_map(&cist_config->vlans,&mstp_MstiVidTable[MSTP_CISTID]);
-        if (MSTP_ENABLED)
-        {
-            MSTP_DYN_RECONFIG_CHANGE = TRUE;
-        }
-    }
-
     if(MSTP_GET_BRIDGE_PRIORITY(MSTP_CIST_BRIDGE_IDENTIFIER) !=
             cist_config->priority * PRIORITY_MULTIPLIER)
     {
@@ -1232,9 +1223,9 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
         }
         /* update the port if and only if the CIST port is available */
         if(cistPortPtr &&
-                MSTP_GET_PORT_PRIORITY(cistPortPtr->portId) != cist_port_config->port_priority)
+                MSTP_GET_PORT_PRIORITY(cistPortPtr->portId) != cist_port_config->port_priority * PORT_PRIORITY_MULTIPLIER)
         {
-            MSTP_SET_PORT_PRIORITY(cistPortPtr->portId, cist_port_config->port_priority);
+            MSTP_SET_PORT_PRIORITY(cistPortPtr->portId, cist_port_config->port_priority * PORT_PRIORITY_MULTIPLIER);
             if(MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
                         MSTP_PORT_PORT_ENABLED) && MSTP_ENABLED)
             {/* Port is 'Enabled' and the priority value has changed,

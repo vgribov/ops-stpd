@@ -1572,7 +1572,7 @@ mstp_getMyMstConfigurationId(MSTP_MST_CONFIGURATION_ID_t *mstCfgId)
    mstCfgId->formatSelector = mstp_Bridge.MstConfigId.formatSelector;
    memcpy(mstCfgId->configName, mstp_Bridge.MstConfigId.configName,
           MSTP_MST_CONFIG_NAME_LEN);
-   mstCfgId->revisionLevel = ntohs(mstp_Bridge.MstConfigId.revisionLevel);
+   mstCfgId->revisionLevel = mstp_Bridge.MstConfigId.revisionLevel;
    memcpy(mstCfgId->digest, mstp_Bridge.MstConfigId.digest, MSTP_DIGEST_SIZE);
 }
 
@@ -4733,7 +4733,8 @@ mstp_txMstp(LPORT_t lport)
       memcpy(&bpdu->mstConfigurationId, &mstp_Bridge.MstConfigId,
              sizeof(bpdu->mstConfigurationId));
       storeShortInPacket(&bpdu->mstConfigurationId.revisionLevel,
-                        mstp_Bridge.MstConfigId.revisionLevel);
+              mstp_Bridge.MstConfigId.revisionLevel);
+
       version3Len += sizeof(bpdu->mstConfigurationId);
 
       /*---------------------------------------------------------------------
@@ -5377,7 +5378,7 @@ mstp_updtRolesCist(void)
    if (cistRootPortId != MSTP_CIST_ROOT_PORT_ID)
    {
       char port[20] = {0};
-      intf_get_port_name(cistRootPortId,port);
+      intf_get_port_name(MSTP_GET_PORT_NUM(cistRootPortId),port);
       mstp_util_set_cist_table_string(ROOT_PORT,port);
       mstp_updtMstiRootInfoChg(MSTP_CISTID);
 
@@ -5908,7 +5909,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
          mstiRootPortId != 0)
       {
          /* Log root port change */
-         intf_get_port_name(mstiRootPortId, newRootPortName);
+         intf_get_port_name(MSTP_GET_PORT_NUM(mstiRootPortId), newRootPortName);
          intf_get_port_name(MSTP_GET_PORT_NUM(MSTP_MSTI_ROOT_PORT_ID(mstid)),
                oldRootPortName);
          snprintf(msti_str, sizeof(msti_str), "MSTI %d", mstid);
@@ -6048,7 +6049,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
           *------------------------------------------------------------------*/
          char dsnPort[10] = {0};
          mstiPortPtr->designatedPriority.dsnPortID = mstiPortPtr->portId;
-         intf_get_port_name(mstiPortPtr->designatedPriority.dsnPortID,dsnPort);
+         intf_get_port_name(MSTP_GET_PORT_NUM(mstiPortPtr->designatedPriority.dsnPortID),dsnPort);
          mstp_util_set_msti_port_table_string(DESIGNATED_PORT,dsnPort,mstid,lport);
 
          /*------------------------------------------------------------------
@@ -7782,7 +7783,7 @@ mstp_isNeighboreBridgeInMyRegion(MSTP_RX_PDU *pkt)
       (!memcmp(my_mstCfgId.configName, bpdu_mstCfgId.configName,
                MSTP_MST_CONFIG_NAME_LEN))
       &&
-      (my_mstCfgId.revisionLevel == ntohs(bpdu_mstCfgId.revisionLevel))
+      (my_mstCfgId.revisionLevel == getShortFromPacket(&bpdu_mstCfgId.revisionLevel))
       &&
       !memcmp(my_mstCfgId.digest, bpdu_mstCfgId.digest, MSTP_DIGEST_SIZE))
    {
