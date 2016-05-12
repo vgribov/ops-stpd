@@ -5376,9 +5376,15 @@ mstp_updtRolesCist(void)
 
    if (cistRootPortId != MSTP_CIST_ROOT_PORT_ID)
    {
-      char port[20] = {0};
-      intf_get_port_name(MSTP_GET_PORT_NUM(cistRootPortId),port);
-      mstp_util_set_cist_table_string(ROOT_PORT,port);
+      /* PortId "0" indicates the bridge is the root */
+      if(cistRootPortId != 0) {
+        char port[20] = {0};
+        intf_get_port_name(MSTP_GET_PORT_NUM(cistRootPortId),port);
+        mstp_util_set_cist_table_string(ROOT_PORT,port);
+      }
+      else {
+        mstp_util_set_cist_table_string(ROOT_PORT,"0");
+      }
       mstp_updtMstiRootInfoChg(MSTP_CISTID);
 
       /* Log root port change */
@@ -5504,13 +5510,15 @@ mstp_updtRolesCist(void)
           *     Port's Designated Priority Vector
           *------------------------------------------------------------------*/
          char designatedRoot[MSTP_ROOT_ID] = {0};
+         char port_name[PORTNAME_LEN] = {0};
          cistPortPtr->designatedPriority = MSTP_CIST_ROOT_PRIORITY;
          snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistPortPtr->designatedPriority.rootID.priority,
                  MSTP_CISTID,cistPortPtr->designatedPriority.rootID.mac_address[0],
                  cistPortPtr->designatedPriority.rootID.mac_address[1],cistPortPtr->designatedPriority.rootID.mac_address[2],
                  cistPortPtr->designatedPriority.rootID.mac_address[3],cistPortPtr->designatedPriority.rootID.mac_address[4],
                  cistPortPtr->designatedPriority.rootID.mac_address[5]);
-         mstp_util_set_cist_table_string(DESIGNATED_ROOT,designatedRoot);
+         intf_get_port_name(lport,port_name);
+         mstp_util_set_cist_port_table_string(port_name,DESIGNATED_ROOT,designatedRoot);
 
          /*-------------------------------------------------------------------
           * 2). Substitute 'DesignatedBridgeID' with this Bridge Identifier
@@ -5523,12 +5531,15 @@ mstp_updtRolesCist(void)
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[1],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[2],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[3],cistPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
-         mstp_util_set_cist_table_string(DESIGNATED_BRIDGE,designatedBridge);
+         mstp_util_set_cist_port_table_string(port_name,DESIGNATED_BRIDGE,designatedBridge);
 
          /*-------------------------------------------------------------------
           * 3). Substitute 'DesignatedPortID' with this Port Identifier
           *------------------------------------------------------------------*/
+         char dsnPort[10] = {0};
          cistPortPtr->designatedPriority.dsnPortID = cistPortPtr->portId;
+         intf_get_port_name(MSTP_GET_PORT_NUM(cistPortPtr->portId),dsnPort);
+         mstp_util_set_cist_port_table_string(port_name,DESIGNATED_PORT,dsnPort);
 
          if(!MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,MSTP_PORT_SEND_RSTP))
          {/* 4). Port is attached to a LAN which has one or more STP Bridges
@@ -5541,7 +5552,7 @@ mstp_updtRolesCist(void)
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[1],cistPortPtr->designatedPriority.rgnRootID.mac_address[2],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[3],cistPortPtr->designatedPriority.rgnRootID.mac_address[4],
                      cistPortPtr->designatedPriority.rgnRootID.mac_address[5]);
-             mstp_util_set_cist_table_string(CIST_REGIONAL_ROOT_ID,regionalRoot);
+             mstp_util_set_cist_port_table_string(port_name,CIST_REGIONAL_ROOT_ID,regionalRoot);
          }
 
          /*------------------------------------------------------------------

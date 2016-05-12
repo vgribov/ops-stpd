@@ -256,8 +256,8 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
         vty_out(vty, "%-43s:%2d %s %s %s", "Designated bridge has priority", priority,
                     "Address:", root_mac, VTY_NEWLINE);
 
-        vty_out(vty, "%-43s:%2d %s %s %s", "Designated port has priority", 0,
-                    "Address:", cist_port->designated_port, VTY_NEWLINE);
+        vty_out(vty, "%-43s:%s %s", "Designated port",
+                     cist_port->designated_port, VTY_NEWLINE);
 
         vty_out(vty, "%-43s:%2ld%s", "Number of transitions to forwarding state",
                     (cist_port->fwd_transition_count)?*cist_port->fwd_transition_count:(int64_t)0,
