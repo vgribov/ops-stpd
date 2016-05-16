@@ -256,6 +256,20 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
  | Return:
  ------------------------------------------------------------------------------
  */
+vtysh_ret_val vtysh_config_context_mstp_clientcallback(void *p_private) {
+
+    /* There is no MSTP commands for config context */
+    /* Can be removed later */
+    return e_vtysh_ok;
+}
+
+/*-----------------------------------------------------------------------------
+ | Function:        vtysh_mstp_context_clientcallback
+ | Responsibility:  Registers the client callback routines for new MSTP context
+ | Parameters:
+ | Return:
+ ------------------------------------------------------------------------------
+ */
 vtysh_ret_val vtysh_mstp_context_clientcallback(void *p_private) {
     vtysh_ovsdb_cbmsg_ptr p_msg = (vtysh_ovsdb_cbmsg *)p_private;
 
