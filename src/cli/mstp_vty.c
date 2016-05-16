@@ -2534,6 +2534,7 @@ DEFUN(cli_mstp_inst_port_priority,
 DEFUN(cli_no_mstp_inst_port_priority,
       cli_no_mstp_inst_port_priority_cmd,
       "no spanning-tree instance <1-64> port-priority {<0-15>}",
+      NO_STR
       SPAN_TREE
       MST_INST
       "Enter an integer number\n"
