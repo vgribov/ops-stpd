@@ -364,7 +364,6 @@ mstp_initMstiPortData(MSTID_t mstid, LPORT_t lport, bool init)
 {
    MSTP_MSTI_PORT_INFO_t     *mstiPortPtr;
 
-   STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(IS_VALID_LPORT(lport));
    STP_ASSERT(MSTP_VALID_MSTID(mstid));
    STP_ASSERT(MSTP_MSTI_INFO(mstid));
@@ -464,7 +463,6 @@ MSTP_CIST_PORT_INFO_t *
 mstp_initCistPortData(LPORT_t lport, bool init)
 {
    MSTP_CIST_PORT_INFO_t     *cistPortPtr;
-   STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(IS_VALID_LPORT(lport));
 
    /*------------------------------------------------------------------------

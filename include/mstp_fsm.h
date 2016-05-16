@@ -69,7 +69,7 @@ typedef struct {
        uint32_t map[PORT_MAP_ARRAY_SIZE];
 } PORT_MAP;
 
-#define MSTI_MAP_ARRAY_SIZE  ((64+31)/32)
+#define MSTI_MAP_ARRAY_SIZE  ((65+31)/32)
 
 typedef struct {
     uint32_t map[MSTI_MAP_ARRAY_SIZE];
