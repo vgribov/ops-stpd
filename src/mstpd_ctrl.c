@@ -1464,7 +1464,10 @@ void update_mstp_cist_port_config(mstpd_message *pmsg)
 void update_mstp_msti_config(mstpd_message *pmsg)
 {
     struct mstp_msti_config *msti_data = NULL;
+    MSTP_COMM_PORT_INFO_t *commPortPtr = NULL;
+    MSTP_MSTI_PORT_INFO_t *mstiPortPtr = NULL;
     int mstid = 0;
+    LPORT_t lport = 0;
     msti_data = (mstp_msti_config *)pmsg->msg;
     if (!msti_data) {
         return;
@@ -1477,17 +1480,16 @@ void update_mstp_msti_config(mstpd_message *pmsg)
          *---------------------------------------------------------------------*/
         MSTP_MSTI_INFO(mstid) = (MSTP_MSTI_INFO_t *)
             calloc(1, sizeof(MSTP_MSTI_INFO_t));
-
-        /*---------------------------------------------------------------------
-         * Mark MST Instance as valid and increment global counter of valid
-         * trees.
-         *---------------------------------------------------------------------*/
-        MSTP_MSTI_INFO(mstid)->valid = TRUE;
-        MSTP_NUM_OF_VALID_TREES++;
+        if (!MSTP_MSTI_INFO(mstid))
+        {
+            VLOG_ERR("Failed to allocate memory for MSTP MSTI Info");
+            return;
+        }
     }
 
     if (mstp_updateMstiVidMapping(msti_data->mstid,msti_data->vlans) && MSTP_ENABLED)
     {
+        mstp_buildMstConfigurationDigest(mstp_Bridge.MstConfigId.digest);
         MSTP_DYN_RECONFIG_CHANGE = TRUE;
     }
     if(MSTP_GET_BRIDGE_PRIORITY(MSTP_MSTI_BRIDGE_IDENTIFIER(mstid)) !=
@@ -1500,6 +1502,61 @@ void update_mstp_msti_config(mstpd_message *pmsg)
             MSTP_DYN_RECONFIG_CHANGE = TRUE;
         }
     }
+    for (lport = 1; lport <= MAX_LPORTS; lport++ )
+    {
+        uint32_t path_cost = 0;
+        commPortPtr = MSTP_COMM_PORT_PTR(lport);
+        if (!commPortPtr)
+        {
+            continue;
+        }
+        if(!MSTP_MSTI_PORT_PTR(mstid, lport))
+        {
+            /*------------------------------------------------------------------
+             * Allocate memory to keep MSTI port's data
+             *------------------------------------------------------------------*/
+            MSTP_MSTI_PORT_PTR(mstid, lport) = (MSTP_MSTI_PORT_INFO_t *)calloc(1, sizeof(MSTP_MSTI_PORT_INFO_t));
+            if(!MSTP_MSTI_PORT_PTR(mstid, lport))
+            {
+                VLOG_ERR("Failed to allocate memory for MSTP MSTI Port Info");
+                return;
+            }
+        }
+        mstiPortPtr = MSTP_MSTI_PORT_PTR(mstid, lport);
+        MSTP_SET_PORT_NUM(mstiPortPtr->portId,lport);
+        if(MSTP_GET_PORT_PRIORITY(mstiPortPtr->portId) !=
+                DEF_MSTP_PORT_PRIORITY * PORT_PRIORITY_MULTIPLIER)
+        {
+            MSTP_SET_PORT_PRIORITY(mstiPortPtr->portId,
+                    DEF_MSTP_PORT_PRIORITY * PORT_PRIORITY_MULTIPLIER);
+            if(MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
+                        MSTP_PORT_PORT_ENABLED) && MSTP_ENABLED)
+            {/* Port is 'Enabled' and the priority value has changed,
+              * indicate that protocol re-initialization is required */
+                MSTP_DYN_RECONFIG_CHANGE = TRUE;
+            }
+        }
+        path_cost = mstp_portAutoPathCostDetect(lport);
+        mstiPortPtr->useCfgPathCost = 0;
+        if(mstiPortPtr->InternalPortPathCost != path_cost)
+        {
+            mstiPortPtr->InternalPortPathCost = path_cost;
+            if(MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
+                        MSTP_PORT_PORT_ENABLED) && MSTP_ENABLED)
+            {/* Port is 'Enabled' and the path cost value has changed,
+              * indicate that protocol re-initialization is required */
+                MSTP_DYN_RECONFIG_CHANGE = TRUE;
+            }
+        }
+        mstp_initMstiPortData(mstid,lport,TRUE);
+    }
+    /*---------------------------------------------------------------------
+     * Mark MST Instance as valid and increment global counter of valid
+     * trees.
+     *---------------------------------------------------------------------*/
+    MSTP_MSTI_INFO(mstid)->valid = TRUE;
+    MSTP_NUM_OF_VALID_TREES++;
+
 }
 /**PROC+**********************************************************************
  * Name:      update_mstp_msti_port_config

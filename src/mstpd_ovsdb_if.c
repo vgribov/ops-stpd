@@ -1913,7 +1913,7 @@ int mstp_msti_update_config(void)
     const struct ovsrec_vlan *vlan_row = NULL;
     MSTI_MAP msti_map;
     bool config_change = FALSE;
-    int i = 0;
+    int i = 0, j = 0;
     bridge_row = ovsrec_bridge_first(idl);
     clearBitmap(&msti_map.map[0],MSTP_INSTANCES_MAX);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
@@ -1926,8 +1926,8 @@ int mstp_msti_update_config(void)
             struct mstp_msti_config *msti_data = NULL;
             msti_data = xzalloc(sizeof(mstp_msti_config));
             clear_vid_map(&msti_data->vlans);
-            for (i = 0; i < msti_row->n_vlans; i++) {
-                vlan_row = msti_row->vlans[i];
+            for (j = 0; j < msti_row->n_vlans; j++) {
+                vlan_row = msti_row->vlans[j];
                 set_vid(&msti_data->vlans,vlan_row->id);
             }
             msti_data->n_vlans = msti_row->n_vlans;
@@ -1946,8 +1946,8 @@ int mstp_msti_update_config(void)
             if(msti_data->n_vlans != msti_row->n_vlans)
             {
                 clear_vid_map(&msti_data->vlans);
-                for (i = 0; i < msti_row->n_vlans; i++) {
-                    vlan_row = msti_row->vlans[i];
+                for (j = 0; j < msti_row->n_vlans; j++) {
+                    vlan_row = msti_row->vlans[j];
                     set_vid(&msti_data->vlans,vlan_row->id);
                 }
                 msti_data->n_vlans = msti_row->n_vlans;
