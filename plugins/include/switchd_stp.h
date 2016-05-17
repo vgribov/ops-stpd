@@ -55,11 +55,19 @@ typedef enum mstp_instance_port_state {
     MSTP_INST_PORT_STATE_INVALID,
 }mstp_instance_port_state_t;
 
+struct mstp_instance_port_interfaces {
+    struct hmap_node hmap_node;  /* Element in struct mstp_instance_port "interfaces" hmap. */
+    char *name;
+    int stp_state;
+};
+
 struct mstp_instance_port {
     struct hmap_node hmap_node; /* Element in struct mstp_instance's "ports" hmap. */
     char *name;
     int stp_state;
     union  mstp_port_cfg cfg;
+    struct hmap interfaces;
+    int nb_interfaces;
 };
 
 struct mstp_instance_vlan {
@@ -79,6 +87,16 @@ struct mstp_instance {
     int hw_stg_id;
 };
 
+void mstp_cist_and_instance_port_interfaces_add(
+                       struct mstp_instance_port *mstp_port,
+                       const struct ovsrec_interface *ifconfig);
+void mstp_cist_and_instance_port_interfaces_delete(
+                                   struct mstp_instance *msti,
+                                   struct mstp_instance_port *mstp_port,
+                                   struct mstp_instance_port_interfaces *pintf);
+bool mstp_cist_and_instance_add_del_instance_port_interfaces(
+                                  struct mstp_instance *msti,
+                                  struct mstp_instance_port *mstp_port);
 
 void mstp_cist_and_instance_vlan_add(const struct stp_blk_params *br,
                                             struct mstp_instance *msti,
