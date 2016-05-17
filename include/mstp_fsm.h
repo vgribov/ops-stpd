@@ -47,6 +47,8 @@ typedef uint32_t IFINDEX_t;      /* interface index for end-points           */
 typedef uint16_t TYP_LEN;
 typedef uint8_t OCTET;
 
+/* port number 1 to 255 for pports, 256 to 511 for lag */
+#define MAX_PPORTS 255
 #define MAX_LPORTS 512
 #define MAX_ENTRIES_IN_POOL MAX_LPORTS
 #define MAX_VLAN_ID 4095

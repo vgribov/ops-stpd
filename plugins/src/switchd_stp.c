@@ -35,6 +35,8 @@
 VLOG_DEFINE_THIS_MODULE(switchd_stp);
 
 #define INSTANCE_STRING_LEN 10
+#define VERIFY_LAG_IFNAME(s) strncasecmp(s, "lag", 3)
+
 
 struct hmap all_mstp_instances = HMAP_INITIALIZER(&all_mstp_instances);
 static struct asic_plugin_interface *p_asic_plugin_interface = NULL;
@@ -187,6 +189,199 @@ mstp_inform_stp_global_port_state(const struct stp_blk_params *br,
     }
 
     return false;
+}
+
+/*-----------------------------------------------------------------------------
+| Function:  mstp_cist_and_instance_port_interfaces_add
+| Description:  Add port interface to cist or msti
+| Parameters[in]: mstp_instance object
+| Parameters[in]: mstp_instance_port object
+| Parameters[in]: ovsrec_interface object
+| Parameters[out]: None
+| Return: None
+-----------------------------------------------------------------------------*/
+void mstp_cist_and_instance_port_interfaces_add(
+                       struct mstp_instance_port *mstp_port,
+                       const struct ovsrec_interface *ifconfig)
+{
+    struct mstp_instance_port_interfaces *new_intf = NULL;
+
+    if (!mstp_port || !ifconfig) {
+        VLOG_DBG("%s: invalid param", __FUNCTION__);
+        return;
+    }
+
+    VLOG_DBG("%s: entry port %s", __FUNCTION__, mstp_port->name);
+
+    /* Allocate structure to save interface information for this port. */
+    new_intf = xzalloc(sizeof(struct mstp_instance_port_interfaces));
+    if (!new_intf) {
+       VLOG_ERR("%s: Failed to allocate memory for intf %s",
+                __FUNCTION__, ifconfig->name);
+       return;
+    }
+    hmap_insert(&mstp_port->interfaces, &new_intf->hmap_node,
+                hash_string(ifconfig->name, 0));
+
+    new_intf->name = xstrdup(ifconfig->name);
+    new_intf->stp_state = MSTP_INST_PORT_STATE_DISABLED;
+    mstp_port->nb_interfaces++;
+
+}
+
+/*-----------------------------------------------------------------------------
+| Function: mstp_cist_and_instance_port_interfaces_delete
+| Description: delete port interface from cist/mst
+| Parameters[in]: mstp_instance object
+| Parameters[in]: mstp_instance_port object
+| Parameters[in]: mstp_instance_port_interfaces object
+| Parameters[out]: None
+| Return: mstp_instance_vlan object
+-----------------------------------------------------------------------------*/
+void mstp_cist_and_instance_port_interfaces_delete(
+                                   struct mstp_instance *msti,
+                                   struct mstp_instance_port *mstp_port,
+                                   struct mstp_instance_port_interfaces *pintf)
+{
+    struct asic_plugin_interface *p_asic_interface = NULL;
+    char *intf_name = NULL;
+
+    if (!msti ||!mstp_port || !pintf) {
+        VLOG_DBG("%s: invalid param", __FUNCTION__);
+        return;
+    }
+
+    VLOG_DBG("%s: entry port %s", __FUNCTION__, mstp_port->name);
+    if (msti->instance_id != MSTP_CIST) {
+        p_asic_interface = get_asic_plugin_interface();
+        if(p_asic_interface) {
+            intf_name = NULL;
+            intf_name = pintf->name;
+            if (intf_name) {
+                p_asic_interface->set_stg_port_state(intf_name,
+                                                     msti->hw_stg_id,
+                                                     MSTP_INST_PORT_STATE_DISABLED,
+                                                     false);
+            }
+        }
+    }
+
+    hmap_remove(&mstp_port->interfaces, &pintf->hmap_node);
+    free(pintf->name);
+    free(pintf);
+    mstp_port->nb_interfaces--;
+
+}
+
+/*-----------------------------------------------------------------------------
+| Function:  mstp_cist_and_instance_port_interface_lookup
+| Description: find port interface in cist/msti
+| Parameters[in]:mstp_instance_port object
+| Parameters[in]: port-interface name
+| Parameters[out]: None
+| Return: mstp_instance_port_interfaces object
+-----------------------------------------------------------------------------*/
+static struct mstp_instance_port_interfaces *
+mstp_cist_and_instance_port_interface_lookup(
+                                     const struct mstp_instance_port *mstp_port,
+                                     const char *name)
+{
+    struct mstp_instance_port_interfaces *pintf = NULL;
+
+    if (!mstp_port || !name) {
+        VLOG_DBG("%s: invalid param", __FUNCTION__);
+        return NULL;
+    }
+    VLOG_DBG("%s: port name %s intf name %s", __FUNCTION__,
+             mstp_port->name, name);
+
+    HMAP_FOR_EACH_WITH_HASH (pintf, hmap_node, hash_string(name, 0),
+                             &mstp_port->interfaces) {
+        if (!strcmp(pintf->name, name)) {
+            return pintf;
+        }
+    }
+    return NULL;
+}
+
+/*-----------------------------------------------------------------------------
+| Function: mstp_instance_add_del_vlans
+| Description: add or delete port interfaces in mstp instance
+| Parameters[in]: mstp_instance object
+| Parameters[in]: mstp_instance object
+| Parameters[out]: bool : return true if any new interfaces added to port
+| Return: None
+-----------------------------------------------------------------------------*/
+bool
+mstp_cist_and_instance_add_del_instance_port_interfaces(
+                                  struct mstp_instance *msti,
+                                  struct mstp_instance_port *mstp_port)
+{
+    size_t i;
+    struct mstp_instance_port_interfaces *pintf=NULL, *pintf_next=NULL;
+    struct shash sh_idl_port_intfs;
+    struct shash_node *sh_node = NULL;
+    const struct ovsrec_port *port_cfg = NULL;
+    bool new_intf_added = false;
+
+    if (!msti || !mstp_port) {
+        VLOG_DBG("%s: invalid param", __FUNCTION__);
+        return false;
+    }
+    VLOG_DBG("%s: entry inst %d port %s", __FUNCTION__, msti->instance_id,
+             mstp_port->name);
+
+    /* Collect all Instance port Interfaces present in the DB. */
+    shash_init(&sh_idl_port_intfs);
+    /* get the port row config */
+    if (msti->instance_id == MSTP_CIST) {
+        port_cfg = mstp_port->cfg.cist_port_cfg->port;
+    }
+    else {
+        port_cfg = mstp_port->cfg.msti_port_cfg->port;
+    }
+
+    for (i = 0; i < port_cfg->n_interfaces; i++) {
+        const struct ovsrec_interface *intf_cfg = port_cfg->interfaces[i];
+
+        if (!intf_cfg) {
+            continue;
+        }
+        if (!shash_add_once(&sh_idl_port_intfs, port_cfg->interfaces[i]->name,
+                            intf_cfg)) {
+            VLOG_WARN("%s:instance id %d port %s: intf %s specified twice as msti VLAN",
+                      __FUNCTION__, msti->instance_id, mstp_port->name,
+                      port_cfg->interfaces[i]->name);
+        }
+    }
+
+    /* Delete old Instance port Interfaces. */
+    HMAP_FOR_EACH_SAFE (pintf, pintf_next, hmap_node, &mstp_port->interfaces) {
+        const struct ovsrec_interface *intf_cfg;
+
+        intf_cfg = shash_find_data(&sh_idl_port_intfs, pintf->name);
+        if (!intf_cfg) {
+            VLOG_DBG("%s:Found a deleted intf %s in port %s in msti %d", __FUNCTION__,
+                     pintf->name, mstp_port->name, msti->instance_id);
+            mstp_cist_and_instance_port_interfaces_delete(msti, mstp_port, pintf);
+        }
+    }
+
+    /* Add new instance port Interfaces. */
+    SHASH_FOR_EACH (sh_node, &sh_idl_port_intfs) {
+        pintf = mstp_cist_and_instance_port_interface_lookup(mstp_port, sh_node->name);
+        if (!pintf) {
+            VLOG_DBG("%s:Found an added intf %s in port %s in msti %d", __FUNCTION__,
+                     sh_node->name, mstp_port->name, msti->instance_id);
+            mstp_cist_and_instance_port_interfaces_add(mstp_port, sh_node->data);
+            new_intf_added = true;
+        }
+    }
+
+    /* Destroy the shash of the IDL port interfaces */
+    shash_destroy(&sh_idl_port_intfs);
+    return new_intf_added;
+
 }
 
 /*-----------------------------------------------------------------------------
@@ -403,6 +598,8 @@ mstp_cist_and_instance_set_port_state(const struct stp_blk_params *br,
 {
     struct asic_plugin_interface *p_asic_interface = NULL;
     bool inform_stp_state = false;
+    char *intf_name = NULL;
+    struct mstp_instance_port_interfaces *pintf=NULL, *pintf_next=NULL;
 
     if (!msti || !br || !mstp_port) {
         VLOG_DBG("%s: invalid param", __FUNCTION__);
@@ -416,9 +613,17 @@ mstp_cist_and_instance_set_port_state(const struct stp_blk_params *br,
 
     p_asic_interface = get_asic_plugin_interface();
     if(p_asic_interface) {
-        p_asic_interface->set_stg_port_state(mstp_port->name, msti->hw_stg_id,
-                                             mstp_port->stp_state,
-                                             inform_stp_state);
+        HMAP_FOR_EACH_SAFE (pintf, pintf_next, hmap_node, &mstp_port->interfaces) {
+            intf_name = NULL;
+            intf_name = pintf->name;
+            pintf->stp_state = mstp_port->stp_state;
+            if (intf_name) {
+                p_asic_interface->set_stg_port_state(intf_name,
+                                                     msti->hw_stg_id,
+                                                     mstp_port->stp_state,
+                                                     inform_stp_state);
+            }
+        }
     }
     else {
         VLOG_ERR("%s: unable to find asic plugin interface",__FUNCTION__);
@@ -457,7 +662,7 @@ mstp_instance_port_add(const struct stp_blk_params *br,
                     __FUNCTION__, inst_port_cfg->port->name, msti->instance_id);
            return;
         }
-
+        hmap_init(&new_port->interfaces);
         hmap_insert(&msti->ports, &new_port->hmap_node,
                     hash_string(inst_port_cfg->port->name, 0));
 
@@ -474,7 +679,9 @@ mstp_instance_port_add(const struct stp_blk_params *br,
         }
         new_port->stp_state = port_state;
         new_port->cfg.msti_port_cfg = inst_port_cfg;
+        new_port->nb_interfaces = 0;
         msti->nb_ports++;
+        mstp_cist_and_instance_add_del_instance_port_interfaces(msti, new_port);
         mstp_cist_and_instance_set_port_state(br, msti, new_port);
 }
 
@@ -502,7 +709,17 @@ mstp_cist_and_instance_port_delete(const struct stp_blk_params *br,
              port->name);
 
     if (port) {
+        struct mstp_instance_port_interfaces *pintf=NULL, *pintf_next=NULL;
+
+        HMAP_FOR_EACH_SAFE (pintf, pintf_next, hmap_node, &port->interfaces) {
+
+            VLOG_DBG("%s:deleted intf %s in port %s in msti %d", __FUNCTION__,
+                     pintf->name, port->name, msti->instance_id);
+            mstp_cist_and_instance_port_interfaces_delete(msti, port, pintf);
+
+        }
         hmap_remove(&msti->ports, &port->hmap_node);
+        hmap_destroy(&port->interfaces);
         free(port->name);
         free(port);
         msti->nb_ports--;
@@ -728,6 +945,7 @@ mstp_instance_update(struct stp_blk_params *br_blk_params,
     int new_port_state;
     bool retval;
     const  struct ovsrec_mstp_instance *p_mist_row;
+    bool new_intf_added = false;
 
     if (!msti || !br_blk_params) {
         VLOG_DBG("%s: invalid param", __FUNCTION__);
@@ -753,6 +971,9 @@ mstp_instance_update(struct stp_blk_params *br_blk_params,
         const struct ovsrec_mstp_instance_port *inst_port_row =
                                                 inst_port->cfg.msti_port_cfg;
 
+        new_intf_added =
+        mstp_cist_and_instance_add_del_instance_port_interfaces(msti,
+                                                                inst_port);
         // Check for port state changes.
         retval =  get_port_state_from_string(inst_port_row->port_state,
                                              &new_port_state);
@@ -761,7 +982,7 @@ mstp_instance_update(struct stp_blk_params *br_blk_params,
             continue;
         }
 
-        if(new_port_state != inst_port->stp_state) {
+        if(new_intf_added || (new_port_state != inst_port->stp_state)) {
             VLOG_DBG("%s: Set mstp instance %d port %s state to %s",
                      __FUNCTION__,
                      msti->instance_id, inst_port->name,
@@ -910,7 +1131,7 @@ mstp_cist_port_add(const struct stp_blk_params *br, struct mstp_instance *msti,
                     __FUNCTION__, cist_port_cfg->port->name, msti->instance_id);
            return;
         }
-
+        hmap_init(&new_port->interfaces);
         hmap_insert(&msti->ports, &new_port->hmap_node,
                     hash_string(cist_port_cfg->port->name, 0));
 
@@ -928,7 +1149,9 @@ mstp_cist_port_add(const struct stp_blk_params *br, struct mstp_instance *msti,
 
         new_port->stp_state = port_state;
         new_port->cfg.cist_port_cfg = cist_port_cfg;
+        new_port->nb_interfaces = 0;
         msti->nb_ports++;
+        mstp_cist_and_instance_add_del_instance_port_interfaces(msti, new_port);
         mstp_cist_and_instance_set_port_state(br, msti, new_port);
 }
 
@@ -950,6 +1173,7 @@ mstp_cist_configure_ports(const struct stp_blk_params *br,
     struct shash_node *sh_node;
     int new_port_state;
     bool retval;
+    bool new_intf_added = false;
 
     if (!msti || !br) {
         VLOG_DBG("%s: invalid param", __FUNCTION__);
@@ -1005,6 +1229,9 @@ mstp_cist_configure_ports(const struct stp_blk_params *br,
         const struct ovsrec_mstp_common_instance_port *inst_port_row =
                                                  inst_port->cfg.cist_port_cfg;
 
+        new_intf_added =
+            mstp_cist_and_instance_add_del_instance_port_interfaces(msti,
+                                                                    inst_port);
         // Check for port state changes.
         retval =  get_port_state_from_string(inst_port_row->port_state,
                                              &new_port_state);
@@ -1013,7 +1240,7 @@ mstp_cist_configure_ports(const struct stp_blk_params *br,
             return;
         }
 
-        if(new_port_state != inst_port->stp_state) {
+        if(new_intf_added || (new_port_state != inst_port->stp_state)) {
             VLOG_DBG("%s:Set CIST port state to %s", __FUNCTION__,
                      inst_port_row->port_state);
             inst_port->stp_state = new_port_state;
@@ -1243,11 +1470,13 @@ stp_plugin_need_propagate_change(struct blk_params* br_blk_param)
     const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
     const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
+    const struct ovsrec_port *port_row = NULL;
     bool cist_row_created = false, cist_row_updated = false,
          mist_row_created = false, mist_row_updated = false,
          mist_row_deleted = false, cist_port_row_updated = false,
          mist_port_row_updated = false, br_mstp_inst_updated = false,
-         propagate_change = false, vlan_updated = false;
+         propagate_change = false, vlan_updated = false,
+         lag_intf_updated = false;
 
     if(!br_blk_param || !br_blk_param->idl) {
         VLOG_DBG("%s: invalid blk param object", __FUNCTION__);
@@ -1318,13 +1547,26 @@ stp_plugin_need_propagate_change(struct blk_params* br_blk_param)
         }
     }
 
+    OVSREC_PORT_FOR_EACH(port_row,idl)
+    {
+        if (VERIFY_LAG_IFNAME(port_row->name)) {
+            continue;
+        }
+        if (OVSREC_IDL_IS_COLUMN_MODIFIED(ovsrec_port_col_interfaces, idl_seqno))
+        {
+            lag_intf_updated = true;
+        }
+    }
+
     if (cist_row_created || cist_row_updated || cist_port_row_updated ||
         mist_row_created || mist_row_updated || mist_row_deleted ||
-        mist_port_row_updated || br_mstp_inst_updated || vlan_updated) {
-        VLOG_DBG("%s:cc %d cu %d cpu %d mc %d mu %d md %d mpu %d bmu %d vu %d", __FUNCTION__,
+        mist_port_row_updated || br_mstp_inst_updated || vlan_updated ||
+        lag_intf_updated) {
+        VLOG_DBG("%s:cc %d cu %d cpu %d mc %d mu %d md %d mpu %d bmu %d vu %d liu %d", __FUNCTION__,
                   cist_row_created, cist_row_updated, cist_port_row_updated,
                   mist_row_created, mist_row_updated, mist_row_deleted,
-                  mist_port_row_updated, br_mstp_inst_updated, vlan_updated);
+                  mist_port_row_updated, br_mstp_inst_updated, vlan_updated,
+                  lag_intf_updated);
         propagate_change = true;
     } else {
         propagate_change = false;
@@ -1373,8 +1615,9 @@ stp_reconfigure(struct blk_params* br_blk_param)
 void
 mstp_instance_dump_data(struct ds *ds, struct mstp_instance *msti)
 {
-    struct mstp_instance_vlan *vlan;
-    struct mstp_instance_port *port;
+    struct mstp_instance_vlan *vlan = NULL;
+    struct mstp_instance_port *port = NULL;
+    struct mstp_instance_port_interfaces *pintf = NULL;
 
 
      if(!msti || !ds) {
@@ -1395,6 +1638,11 @@ mstp_instance_dump_data(struct ds *ds, struct mstp_instance *msti)
     HMAP_FOR_EACH (port, hmap_node, &msti->ports) {
         ds_put_format(ds, "port %s state %s:\n", port->name,
                       port_state_str[port->stp_state]);
+        ds_put_format(ds, "port-intf count %d:\n", port->nb_interfaces);
+        HMAP_FOR_EACH(pintf, hmap_node, &port->interfaces) {
+            ds_put_format(ds, "    intf name: %s :state %s\n", pintf->name,
+                          port_state_str[pintf->stp_state]);
+        }
     }
     ds_put_format(ds, "\n");
 }
