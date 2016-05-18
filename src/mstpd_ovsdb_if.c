@@ -374,6 +374,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_port_col_vlan_mode);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_admin);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_hw_config);
+    ovsdb_idl_add_column(idl, &ovsrec_port_col_interfaces);
 
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_instances);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_common_instance);
@@ -2279,6 +2280,7 @@ util_add_default_ports_to_mist() {
     int64_t admin_path_cost = 0;
     struct ovsdb_idl_txn *txn = NULL;
     int i = 0, j = 0,k = 0;
+    uint64_t msti_port_count = 0;
 
     bridge_row = ovsrec_bridge_first(idl);
     if (!bridge_row) {
@@ -2296,13 +2298,27 @@ util_add_default_ports_to_mist() {
         txn = ovsdb_idl_txn_create(idl);
 
         mstp_port_info = xmalloc(sizeof *mstp_row->mstp_instance_ports * bridge_row->n_ports-1);
+        if (!mstp_port_info)
+        {
+            VLOG_ERR("Failed to allocate memory for MSTI Port Info");
+            ovsdb_idl_txn_commit_block(txn);
+            ovsdb_idl_txn_destroy(txn);
+            return;
+        }
+
 
         for (j=0,i=0; i<bridge_row->n_ports; i++) {
 
             /* create CIST_port entry */
-            if (strcmp(bridge_row->ports[i]->name,"bridge_normal") == 0) {
+            if ((strcmp(bridge_row->ports[i]->name,"bridge_normal") == 0)) {
                 continue;
             }
+            if (((bridge_row->ports[i]->n_interfaces == 1) &&
+                        (strncmp(bridge_row->ports[i]->interfaces[0]->type,OVSREC_INTERFACE_TYPE_SYSTEM, strlen(bridge_row->ports[i]->interfaces[0]->type))!=0)))
+            {
+                continue;
+            }
+
 
             mstp_port_row = (struct ovsrec_mstp_instance_port *)util_get_mist_port(bridge_row->ports[i]->name, mstp_row);
             if(mstp_port_row) {
@@ -2312,10 +2328,32 @@ util_add_default_ports_to_mist() {
 
             /* Create MSTI port table */
             mstp_port_row = ovsrec_mstp_instance_port_insert(txn);
+            if (!mstp_port_row)
+            {
+                VLOG_ERR("Failed to create Transaction for MSTI Port Info");
+                ovsdb_idl_txn_commit_block(txn);
+                ovsdb_idl_txn_destroy(txn);
+                return;
+            }
+            if (!bridge_row->ports[i])
+            {
+                VLOG_ERR("Failed to get Port Info for MSTP MSTI PORT");
+                ovsdb_idl_txn_commit_block(txn);
+                ovsdb_idl_txn_destroy(txn);
+                return;
+            }
+            msti_port_count++;
+
 
             /* FILL the default values for CIST_port entry */
-            ovsrec_mstp_instance_port_set_port_state(mstp_port_row,
-                    MSTP_STATE_BLOCK);
+            if (!strcmp(bridge_row->ports[i]->admin,OVSREC_PORT_ADMIN_UP)) {
+                ovsrec_mstp_instance_port_set_port_state( mstp_port_row,
+                        MSTP_STATE_FORWARD);
+            }
+            else {
+                ovsrec_mstp_instance_port_set_port_state(mstp_port_row,
+                        MSTP_STATE_BLOCK);
+            }
             ovsrec_mstp_instance_port_set_port_role( mstp_port_row,
                     MSTP_ROLE_DISABLE);
             ovsrec_mstp_instance_port_set_port_priority(mstp_port_row,
@@ -2327,7 +2365,7 @@ util_add_default_ports_to_mist() {
             mstp_port_info[j++] = mstp_port_row;
         }
         ovsrec_mstp_instance_set_mstp_instance_ports (mstp_row,
-                mstp_port_info, bridge_row->n_ports-1);
+                mstp_port_info, msti_port_count);
         free(mstp_port_info);
         ovsdb_idl_txn_commit_block(txn);
         ovsdb_idl_txn_destroy(txn);
@@ -2364,6 +2402,7 @@ util_add_default_ports_to_cist() {
     bool root_guard_disable = false;
     bool loop_guard_disable = false;
     bool bpdu_filter_disable = false;
+    uint64_t cist_port_count = 0;
 
 
     txn = ovsdb_idl_txn_create(idl);
@@ -2386,13 +2425,24 @@ util_add_default_ports_to_cist() {
 
     /* Add CIST port entry for all ports to the CIST table */
     cist_port_info = xmalloc(sizeof *cist_row->mstp_common_instance_ports * bridge_row->n_ports-1);
+    if (!cist_port_info)
+    {
+        VLOG_ERR("Failed to allocate memory for Cist Port Info");
+        ovsdb_idl_txn_commit_block(txn);
+        ovsdb_idl_txn_destroy(txn);
+        return;
+    }
 
     for (i = 0,j =0 ; i < bridge_row->n_ports; i++) {
         /* create CIST_port entry */
         if (strcmp(bridge_row->ports[i]->name,"bridge_normal") == 0) {
             continue;
         }
-
+        if (((bridge_row->ports[i]->n_interfaces == 1) &&
+                (strncmp(bridge_row->ports[i]->interfaces[0]->type,OVSREC_INTERFACE_TYPE_SYSTEM, strlen(bridge_row->ports[i]->interfaces[0]->type))!=0)))
+        {
+            continue;
+        }
         cist_port_row = (struct ovsrec_mstp_common_instance_port *)util_get_cist_port(bridge_row->ports[i]->name);
         if(cist_port_row) {
             cist_port_info[j++] = cist_port_row;
@@ -2400,12 +2450,33 @@ util_add_default_ports_to_cist() {
         }
 
         cist_port_row = ovsrec_mstp_common_instance_port_insert(txn);
+        if (!cist_port_row)
+        {
+            VLOG_ERR("Failed to create Transaction for Cist Port Info");
+            ovsdb_idl_txn_commit_block(txn);
+            ovsdb_idl_txn_destroy(txn);
+            return;
+        }
+        if (!bridge_row->ports[i])
+        {
+            VLOG_ERR("Failed to get Port Info for MSTP CIST Port");
+            ovsdb_idl_txn_commit_block(txn);
+            ovsdb_idl_txn_destroy(txn);
+            return;
+        }
+        cist_port_count++;
 
         /* FILL the default values for CIST_port entry */
         ovsrec_mstp_common_instance_port_set_port( cist_port_row,
                 bridge_row->ports[i]);
-        ovsrec_mstp_common_instance_port_set_port_state( cist_port_row,
-                MSTP_STATE_BLOCK);
+        if (!strcmp(bridge_row->ports[i]->admin,OVSREC_PORT_ADMIN_UP)) {
+            ovsrec_mstp_common_instance_port_set_port_state( cist_port_row,
+                    MSTP_STATE_FORWARD);
+        }
+        else {
+            ovsrec_mstp_common_instance_port_set_port_state( cist_port_row,
+                    MSTP_STATE_BLOCK);
+        }
         ovsrec_mstp_common_instance_port_set_port_role( cist_port_row,
                 MSTP_ROLE_DISABLE);
         ovsrec_mstp_common_instance_port_set_admin_path_cost( cist_port_row,
@@ -2428,7 +2499,7 @@ util_add_default_ports_to_cist() {
         cist_port_info[j++] = cist_port_row;
     }
     ovsrec_mstp_common_instance_set_mstp_common_instance_ports (cist_row,
-                cist_port_info, bridge_row->n_ports-1);
+                cist_port_info, cist_port_count);
     free(cist_port_info);
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
@@ -3310,6 +3381,12 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
     txn = ovsdb_idl_txn_create(idl);
     bridge_row = ovsrec_bridge_first(idl);
     cist_row = ovsrec_mstp_common_instance_first(idl);
+    if (!name)
+    {
+        ovsdb_idl_txn_destroy(txn);
+        MSTP_OVSDB_UNLOCK;
+        return;
+    }
     idp = find_iface_data_by_name(name);
     if (!idp)
     {
@@ -3335,20 +3412,29 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         }
     }
     if (operation == e_mstpd_lport_add && !cist_port_row) {
-        cist_port_add = ovsrec_mstp_common_instance_port_insert(txn);
+        bool found = false;
         /* FILL the default values for CIST_port entry */
         for (i = 0; i < bridge_row->n_ports; i++)
         {
             if(strcmp(bridge_row->ports[i]->name,name) == 0)
             {
+                found = true;
                 break;
             }
         }
-        if (!bridge_row->ports[i])
+        if ((found && !bridge_row->ports[i]) || (i == bridge_row->n_ports))
         {
             ovsdb_idl_txn_destroy(txn);
             MSTP_OVSDB_UNLOCK;
-            STP_ASSERT(0);
+            VLOG_ERR("Failed to find corresponding Port Row for CIST");
+            return;
+        }
+        cist_port_add = ovsrec_mstp_common_instance_port_insert(txn);
+        if (!cist_port_add)
+        {
+            ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+            VLOG_ERR("Failed to create transaction for Port Row in CIST");
             return;
         }
         ovsrec_mstp_common_instance_port_set_port( cist_port_add,
@@ -3387,6 +3473,8 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         if(!cist_port_info) {
             ovsdb_idl_txn_commit_block(txn);
             ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+            return;
         }
 
         for (i = 0; i < cist_row->n_mstp_common_instance_ports; i++) {
@@ -3408,6 +3496,8 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         if(!cist_port_info) {
             ovsdb_idl_txn_commit_block(txn);
             ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+            return;
         }
 
         for (i = 0,j = 0; i < cist_row->n_mstp_common_instance_ports; i++) {
@@ -3485,19 +3575,28 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
         }
         if ((operation == e_mstpd_lport_add) && !msti_port_row)
         {
-            msti_port_add = ovsrec_mstp_instance_port_insert(txn);
+            bool found = false;
             for (k = 0; k < bridge_row->n_ports; k++)
             {
                 if(strcmp(bridge_row->ports[k]->name,name) == 0)
                 {
+                    found = true;
                     break;
                 }
             }
-            if (!bridge_row->ports[k])
+            if ((found && !bridge_row->ports[i]) || (i == bridge_row->n_ports))
             {
                 ovsdb_idl_txn_destroy(txn);
                 MSTP_OVSDB_UNLOCK;
-                STP_ASSERT(0);
+                VLOG_ERR("Failed to find corresponding Port Row for MSTI");
+                return;
+            }
+            msti_port_add = ovsrec_mstp_instance_port_insert(txn);
+            if (!msti_port_add)
+            {
+                ovsdb_idl_txn_destroy(txn);
+                MSTP_OVSDB_UNLOCK;
+                VLOG_ERR("Failed to create transaction for Port Row in MSTI");
                 return;
             }
             /* FILL the default values for CIST_port entry */

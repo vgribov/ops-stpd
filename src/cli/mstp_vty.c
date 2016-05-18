@@ -685,6 +685,8 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     const struct shash_node **vlan_nodes = NULL;
     const struct shash_node **mstp_port_nodes = NULL;
     struct shash sorted_port_id;
+    char root_mac[OPS_MAC_STR_SIZE] = {0};
+    int priority = 0, sys_id = 0;
 
     if (!cist_row) {
         VLOG_DBG("Invalid arguments for mstp_show_instance_info %s: %d\n",
@@ -728,9 +730,14 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
             system_row->system_mac, "Priority",
             ((*mstp_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
+    if(mstp_row->designated_root) {
+        memset(root_mac, 0, sizeof(root_mac));
+        priority = 0;
+        sscanf(mstp_row->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
+    }
 
     vty_out(vty, "%-14s Address:%-20s Priority:%ld%s", "Root",
-            (mstp_row->designated_root)?:system_row->system_mac,
+            root_mac,
             (mstp_row->root_priority)?*mstp_row->root_priority:(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
