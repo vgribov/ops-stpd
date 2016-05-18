@@ -5200,6 +5200,8 @@ mstp_updtRolesCist(void)
    uint16_t                       rootHelloTime = 0;
    char                           oldRootPortName[PORTNAME_LEN];
    char                           newRootPortName[PORTNAME_LEN];
+   char                           designatedRoot[MSTP_ROOT_ID] = {0};
+   char                           regionalRoot[MSTP_ROOT_ID] = {0};
    hadNonZeroCistEPC = (MSTP_CIST_ROOT_PRIORITY.extRootPathCost == 0);
 
    /*------------------------------------------------------------------------
@@ -5342,18 +5344,17 @@ mstp_updtRolesCist(void)
    if(!MSTP_BRIDGE_ID_EQUAL(MSTP_CIST_ROOT_PRIORITY.rootID,
                             cistRootPriVec.rootID))
    {
-      char designatedRoot[MSTP_ROOT_ID] = {0};
       mstp_updtMstiRootInfoChg(MSTP_CISTID);
       mstp_updateCstRootHistory(cistRootPriVec.rootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rootID,
                         cistRootPriVec.rootID,TRUE,MSTP_CISTID);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rootID.priority,
-                MSTP_CISTID, cistRootPriVec.rootID.mac_address[0],
-                cistRootPriVec.rootID.mac_address[1],cistRootPriVec.rootID.mac_address[2],
-                cistRootPriVec.rootID.mac_address[3],cistRootPriVec.rootID.mac_address[4],
-                cistRootPriVec.rootID.mac_address[5]);
-      mstp_util_set_cist_table_string(DESIGNATED_ROOT,designatedRoot);
    }
+   snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rootID.priority,
+           MSTP_CISTID, cistRootPriVec.rootID.mac_address[0],
+           cistRootPriVec.rootID.mac_address[1],cistRootPriVec.rootID.mac_address[2],
+           cistRootPriVec.rootID.mac_address[3],cistRootPriVec.rootID.mac_address[4],
+           cistRootPriVec.rootID.mac_address[5]);
+   mstp_util_set_cist_table_string(DESIGNATED_ROOT,designatedRoot);
 
    /*-------------------------------------------------------------------------
     * Check if the IST Regional Root has been changed, if so then update
@@ -5361,18 +5362,17 @@ mstp_updtRolesCist(void)
     *------------------------------------------------------------------------*/
    if(cistRgnRootChanged)
    {
-      char regionalRoot[MSTP_ROOT_ID] = {0};
       mstp_updtMstiRootInfoChg(MSTP_CISTID);
       mstp_updateIstRootHistory(cistRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_CIST_ROOT_PRIORITY.rgnRootID,
                         cistRootPriVec.rgnRootID,FALSE,MSTP_CISTID);
-      snprintf(regionalRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rgnRootID.priority,
-                MSTP_CISTID,cistRootPriVec.rgnRootID.mac_address[0],
-                cistRootPriVec.rgnRootID.mac_address[1],cistRootPriVec.rgnRootID.mac_address[2],
-                cistRootPriVec.rgnRootID.mac_address[3],cistRootPriVec.rgnRootID.mac_address[4],
-                cistRootPriVec.rgnRootID.mac_address[5]);
-      mstp_util_set_cist_table_string(REGIONAL_ROOT,regionalRoot);
    }
+   snprintf(regionalRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x",cistRootPriVec.rgnRootID.priority,
+           MSTP_CISTID,cistRootPriVec.rgnRootID.mac_address[0],
+           cistRootPriVec.rgnRootID.mac_address[1],cistRootPriVec.rgnRootID.mac_address[2],
+           cistRootPriVec.rgnRootID.mac_address[3],cistRootPriVec.rgnRootID.mac_address[4],
+           cistRootPriVec.rgnRootID.mac_address[5]);
+   mstp_util_set_cist_table_string(REGIONAL_ROOT,regionalRoot);
 
    if (cistRootPortId != MSTP_CIST_ROOT_PORT_ID)
    {
@@ -5793,6 +5793,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
    char                           oldRootPortName[PORTNAME_LEN];
    char                           newRootPortName[PORTNAME_LEN];
    char                           msti_str[10];
+   char                           designatedRoot[MSTP_ROOT_ID] = {0};
 
    /*------------------------------------------------------------------------
     * Assume that the Bridge's own Bridge Priority Vector is the best, i.e.
@@ -5903,18 +5904,17 @@ mstp_updtRolesMsti(MSTID_t mstid)
    if(!MSTP_BRIDGE_ID_EQUAL(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID,
                             mstiRootPriVec.rgnRootID))
    {
-      char designatedRoot[MSTP_ROOT_ID] = {0};
       mstp_updtMstiRootInfoChg(mstid);
       mstp_updateMstiRootHistory(mstid, mstiRootPriVec.rgnRootID);
       mstp_logNewRootId(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID,
                         mstiRootPriVec.rgnRootID, FALSE, mstid);
-      snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x", mstiRootPriVec.rgnRootID.priority,
-                mstid, mstiRootPriVec.rgnRootID.mac_address[0],
-                mstiRootPriVec.rgnRootID.mac_address[1],mstiRootPriVec.rgnRootID.mac_address[2],
-                mstiRootPriVec.rgnRootID.mac_address[3],mstiRootPriVec.rgnRootID.mac_address[4],
-                mstiRootPriVec.rgnRootID.mac_address[5]);
-      mstp_util_set_msti_table_string(DESIGNATED_ROOT,designatedRoot,mstid);
    }
+   snprintf(designatedRoot,MSTP_ROOT_ID,"%d.%d.%02x:%02x:%02x:%02x:%02x:%02x", mstiRootPriVec.rgnRootID.priority,
+           mstid, mstiRootPriVec.rgnRootID.mac_address[0],
+           mstiRootPriVec.rgnRootID.mac_address[1],mstiRootPriVec.rgnRootID.mac_address[2],
+           mstiRootPriVec.rgnRootID.mac_address[3],mstiRootPriVec.rgnRootID.mac_address[4],
+           mstiRootPriVec.rgnRootID.mac_address[5]);
+   mstp_util_set_msti_table_string(DESIGNATED_ROOT,designatedRoot,mstid);
 
    if (mstiRootPortId != MSTP_MSTI_ROOT_PORT_ID(mstid))
    {
