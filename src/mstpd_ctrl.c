@@ -1108,6 +1108,30 @@ void update_mstp_cist_config(mstpd_message *pmsg)
             }
         }
     }
+
+    if(mstp_Bridge.TxHoldCount != cist_config->tx_hold_count)
+    {
+        mstp_Bridge.TxHoldCount = cist_config->tx_hold_count;
+    }
+
+    /* Copy the operational timers from config as the bridge is the root for thsi CIST */
+    if(MSTP_IS_THIS_BRIDGE_CIST_ROOT) {
+        struct ovsdb_idl_txn *txn = NULL;
+        MSTP_OVSDB_LOCK;
+        txn = ovsdb_idl_txn_create(idl);
+        if(txn == NULL) {
+            VLOG_ERR("%s Transaction Failed %s:%d", program_name, __FILE__, __LINE__);
+            return;
+        }
+        mstp_util_set_cist_table_value(OPER_HELLO_TIME, mstp_Bridge.HelloTime);
+        mstp_util_set_cist_table_value(OPER_FORWARD_DELAY, mstp_Bridge.FwdDelay);
+        mstp_util_set_cist_table_value(OPER_MAX_AGE, mstp_Bridge.MaxAge);
+        mstp_util_set_cist_table_value(OPER_TX_HOLD_COUNT, mstp_Bridge.TxHoldCount);
+        ovsdb_idl_txn_commit_block(txn);
+        ovsdb_idl_txn_destroy(txn);
+        MSTP_OVSDB_UNLOCK;
+    }
+
     VLOG_DBG("Config Change in CIST Data : %d",MSTP_DYN_RECONFIG_CHANGE);
 }
 
