@@ -2521,7 +2521,7 @@ util_mstp_common_instance_status_clean(time_t curr_time, const struct ovsrec_sys
     const int64_t oper_hello_time = DEF_HELLO_TIME;
     const int64_t oper_fwd_delay = DEF_FORWARD_DELAY;
     const int64_t oper_max_age = DEF_MAX_AGE;
-    const int64_t oper_tx_hold_cnt = 1;
+    const int64_t oper_tx_hold_cnt = DEF_HOLD_COUNT;
     const bool topology_unstable = false;
     const bool bool_false = false;
     const int64_t def_zero = 0;

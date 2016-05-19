@@ -37,6 +37,7 @@
 #include "mstp_fsm.h"
 #include "mstp_recv.h"
 #include "mstp_inlines.h"
+#include "mstp_ovsdb_if.h"
 
 VLOG_DEFINE_THIS_MODULE(mstpd_pim_sm);
 /*---------------------------------------------------------------------------
@@ -1178,6 +1179,21 @@ mstp_pimSmUpdateAct(MSTID_t mstid, LPORT_t lport)
       }
       else
          cistPortPtr->portTimes.helloTime = commPortPtr->HelloTime;
+
+      MSTP_OVSDB_LOCK;
+      struct ovsdb_idl_txn *txn = NULL;
+      txn = ovsdb_idl_txn_create(idl);
+      if(txn == NULL) {
+          VLOG_ERR("%s Transaction Failed %s:%d", program_name, __FILE__, __LINE__);
+          return;
+      }
+      mstp_util_set_cist_table_value(OPER_HELLO_TIME, cistPortPtr->portTimes.helloTime);
+      mstp_util_set_cist_table_value(OPER_FORWARD_DELAY, cistPortPtr->portTimes.fwdDelay);
+      mstp_util_set_cist_table_value(OPER_MAX_AGE, cistPortPtr->portTimes.maxAge);
+      mstp_util_set_cist_table_value(OPER_TX_HOLD_COUNT, mstp_Bridge.TxHoldCount);
+      ovsdb_idl_txn_commit_block(txn);
+      ovsdb_idl_txn_destroy(txn);
+      MSTP_OVSDB_UNLOCK;
 
       MSTP_CIST_PORT_CLR_BIT(cistPortPtr->bitMap, MSTP_CIST_PORT_UPDT_INFO);
       cistPortPtr->infoIs = MSTP_INFO_IS_MINE;

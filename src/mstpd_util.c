@@ -5432,6 +5432,12 @@ mstp_updtRolesCist(void)
      * Root Path Priority Vectors */
       MSTP_CIST_ROOT_TIMES = MSTP_CIST_BRIDGE_TIMES;
       MSTP_CIST_ROOT_HELLO_TIME = 0;
+
+      /* Copy the operational timers from config as the bridge is the root for thsi CIST */
+      mstp_util_set_cist_table_value(OPER_HELLO_TIME, mstp_Bridge.HelloTime);
+      mstp_util_set_cist_table_value(OPER_FORWARD_DELAY, mstp_Bridge.FwdDelay);
+      mstp_util_set_cist_table_value(OPER_MAX_AGE, mstp_Bridge.MaxAge);
+      mstp_util_set_cist_table_value(OPER_TX_HOLD_COUNT, mstp_Bridge.TxHoldCount);
    }
    else
    {/* case 2) from the above */

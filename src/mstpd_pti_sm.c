@@ -317,6 +317,17 @@ mstp_ptiSmTickAct(LPORT_t lport)
    if(commPortPtr->helloWhen)
    {
       commPortPtr->helloWhen--;
+      struct ovsdb_idl_txn *txn = NULL;
+      MSTP_OVSDB_LOCK;
+      txn = ovsdb_idl_txn_create(idl);
+      if(txn == NULL) {
+          VLOG_ERR("%s Transaction Failed %s:%d", program_name, __FILE__, __LINE__);
+          return;
+      }
+      mstp_util_set_cist_table_value(HELLO_EXPIRY_TIME, commPortPtr->helloWhen);
+      ovsdb_idl_txn_commit_block(txn);
+      ovsdb_idl_txn_destroy(txn);
+      MSTP_OVSDB_UNLOCK;
       if(commPortPtr->helloWhen == 0)
       {/* Transmit Timer has expired */
          if(portEnabled)
@@ -375,6 +386,17 @@ mstp_ptiSmTickAct(LPORT_t lport)
       (cistPortPtr->prtState != MSTP_PRT_STATE_DISABLED_PORT))
    {
       cistPortPtr->fdWhile--;
+      struct ovsdb_idl_txn *txn = NULL;
+      MSTP_OVSDB_LOCK;
+      txn = ovsdb_idl_txn_create(idl);
+      if(txn == NULL) {
+          VLOG_ERR("%s Transaction Failed %s:%d", program_name, __FILE__, __LINE__);
+          return;
+      }
+      mstp_util_set_cist_table_value(FORWARD_DELAY_EXP_TIME, cistPortPtr->fdWhile);
+      ovsdb_idl_txn_commit_block(txn);
+      ovsdb_idl_txn_destroy(txn);
+      MSTP_OVSDB_UNLOCK;
       if(cistPortPtr->fdWhile == 0)
          call_prtSm = TRUE;
    }

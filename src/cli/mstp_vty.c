@@ -2003,7 +2003,7 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
     END_DB_TXN(txn);
 }
 
-
+#if 0
 /*-----------------------------------------------------------------------------
  | Function:        mstp_cli_set_mist_port_state
  | Responsibility:  Sets the MSTP instance port table port state paramters
@@ -2175,6 +2175,7 @@ mstp_cli_set_cist_port_state(const char *if_name, const char *port_state) {
     /* End of transaction. */
     END_DB_TXN(txn);
 }
+#endif
 
 DEFUN(cli_mstp_func,
       cli_mstp_func_cmd,
@@ -2652,6 +2653,7 @@ DEFUN(cli_no_mstp_transmit_hold_count,
     return CMD_SUCCESS;
 }
 
+#if 0
 DEFUN_HIDDEN(cli_mstp_inst_port_state,
       cli_mstp_inst_port_state_cmd,
       "spanning-tree instance <1-64> port-state (Disabled | Blocking | Learning | Forwarding)",
@@ -2681,6 +2683,7 @@ DEFUN_HIDDEN(cli_mstp_port_state,
     mstp_cli_set_cist_port_state(vty->index, argv[0]);
     return CMD_SUCCESS;
 }
+#endif
 
 /* MSTP Show commands*/
 DEFUN(show_spanning_tree,
@@ -2942,8 +2945,10 @@ void cli_post_init(void) {
     install_element(INTERFACE_NODE, &cli_no_mstp_inst_port_priority_cmd);
     install_element(INTERFACE_NODE, &cli_mstp_inst_cost_cmd);
     install_element(INTERFACE_NODE, &cli_no_mstp_inst_cost_cmd);
+    #if 0
     install_element(INTERFACE_NODE, &cli_mstp_inst_port_state_cmd);
     install_element(INTERFACE_NODE, &cli_mstp_port_state_cmd);
+    #endif
 
     /* show commands */
     install_element(ENABLE_NODE, &show_spanning_tree_cmd);
