@@ -77,7 +77,7 @@ int init(int phase_id)
         ret = EPERM;
         goto error;
     }
-    VLOG_INFO("STP Reconfgiure registerd in bridge reconfig block %d",
+    VLOG_INFO("STP Reconfigure registered in bridge reconfig block %d",
                  BLK_BR_FEATURE_RECONFIG);
 
     unixctl_command_register(SWITCHD_STP_PLUGIN_NAME, "[instance-id]", 0, 1,
