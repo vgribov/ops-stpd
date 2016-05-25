@@ -2327,7 +2327,7 @@ DEFUN(cli_no_mstp_port_type,
       "no spanning-tree port-type",
       NO_STR
       SPAN_TREE
-      "Type of port (Default: Network port)\n") {
+      "Type of port\n") {
 
     mstp_cli_set_cist_port_table(vty->index, MSTP_ADMIN_EDGE, DEF_ADMIN_EDGE);
     return CMD_SUCCESS;
