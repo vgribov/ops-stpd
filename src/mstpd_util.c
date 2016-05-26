@@ -5545,8 +5545,15 @@ mstp_updtRolesCist(void)
           *------------------------------------------------------------------*/
          char dsnPort[10] = {0};
          cistPortPtr->designatedPriority.dsnPortID = cistPortPtr->portId;
-         intf_get_port_name(MSTP_GET_PORT_NUM(cistPortPtr->portId),dsnPort);
-         mstp_util_set_cist_port_table_string(port_name,DESIGNATED_PORT,dsnPort);
+         if (cistPortPtr->portId != 0)
+         {
+             intf_get_port_name(MSTP_GET_PORT_NUM(cistPortPtr->portId),dsnPort);
+             mstp_util_set_cist_port_table_string(port_name,DESIGNATED_PORT,dsnPort);
+         }
+         else
+         {
+             mstp_util_set_cist_port_table_string(port_name,DESIGNATED_PORT,"0");
+         }
 
          if(!MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,MSTP_PORT_SEND_RSTP))
          {/* 4). Port is attached to a LAN which has one or more STP Bridges
@@ -5945,7 +5952,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
    if (MSTP_MSTI_ROOT_PORT_ID(mstid))
    {
        char root_port[10] = {0};
-       intf_get_port_name(MSTP_MSTI_ROOT_PORT_ID(mstid), root_port);
+       intf_get_port_name(MSTP_GET_PORT_NUM(MSTP_MSTI_ROOT_PORT_ID(mstid)), root_port);
        mstp_util_set_msti_table_string(ROOT_PORT, root_port, mstid);
    }
    MSTP_MSTI_ROOT_PRIORITY(mstid) = mstiRootPriVec;
@@ -6066,8 +6073,15 @@ mstp_updtRolesMsti(MSTID_t mstid)
           *------------------------------------------------------------------*/
          char dsnPort[10] = {0};
          mstiPortPtr->designatedPriority.dsnPortID = mstiPortPtr->portId;
-         intf_get_port_name(MSTP_GET_PORT_NUM(mstiPortPtr->designatedPriority.dsnPortID),dsnPort);
-         mstp_util_set_msti_port_table_string(DESIGNATED_PORT,dsnPort,mstid,lport);
+         if (mstiPortPtr->portId != 0)
+         {
+             intf_get_port_name(MSTP_GET_PORT_NUM(mstiPortPtr->designatedPriority.dsnPortID),dsnPort);
+             mstp_util_set_msti_port_table_string(DESIGNATED_PORT,dsnPort,mstid,lport);
+         }
+         else
+         {
+             mstp_util_set_msti_port_table_string(DESIGNATED_PORT,"0",mstid,lport);
+         }
 
          /*------------------------------------------------------------------
           * Update the Designated Times for the Port.

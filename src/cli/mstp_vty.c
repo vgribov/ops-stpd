@@ -741,8 +741,8 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
             (mstp_row->root_priority)?*mstp_row->root_priority:(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
-    vty_out(vty, "%19s:%ld, Cost:%ld, Rem Hops:%ld%s", "Port",
-            (mstp_row->root_port)?*mstp_row->root_port:(int64_t)0,
+    vty_out(vty, "%19s:%s, Cost:%ld, Rem Hops:%ld%s", "Port",
+            (mstp_row->root_port)?mstp_row->root_port:"0",
             (mstp_row->root_path_cost)?*mstp_row->root_path_cost:DEF_MSTP_COST,
             (cist_row->remaining_hops)?*cist_row->remaining_hops:(int64_t)0,
             VTY_NEWLINE);
