@@ -608,7 +608,7 @@ mstpd_protocol_thread(void *arg)
             /***********************************************************
              * Msg from MSTP timers.
              ***********************************************************/
-            if(mstp_enable)
+            if(MSTP_ENABLED)
             {
                 mstp_processTimerTickEvent();
             }
@@ -621,7 +621,7 @@ mstpd_protocol_thread(void *arg)
              ************************************************************/
             VLOG_DBG("%s : MSTP BPDU Packet arrived from interface socket",
                    __FUNCTION__);
-            if(mstp_enable)
+            if(MSTP_ENABLED)
             {
                 MSTP_PKT_TYPE_t pktType;
                 pktType = mstp_decodeBpdu(pkt);
@@ -862,6 +862,7 @@ mstp_checkDynReconfigChanges(void)
     * clear in-memory data used by MSTP
     *---------------------------------------------------------------------*/
    mstp_clearProtocolData();
+   Spanning = false;
    mstp_config_reinit();
 
 

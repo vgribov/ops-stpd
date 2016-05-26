@@ -67,6 +67,7 @@ pthread_mutex_t ovsdb_mutex = PTHREAD_MUTEX_INITIALIZER;
  *  * that used by MSTP state machine (Mbps). */
 #define MEGA_BITS_PER_SEC  1000000
 #define INTF_TO_MSTP_LINK_SPEED(s)    ((s)/MEGA_BITS_PER_SEC)
+#define VERIFY_LAG_IFNAME(s) strncasecmp(s, "lag", 3)
 
 struct ovsdb_idl *idl;           /*!< Session handle for OVSDB IDL session. */
 static unsigned int idl_seqno;
@@ -924,10 +925,12 @@ del_old_interface(struct shash_node *sh_node)
 {
     if (sh_node) {
         struct iface_data *idp = sh_node->data;
-        free(idp->name);
-        idp_lookup[idp->lport_id] = NULL;
-        free(idp);
-        shash_delete(&all_interfaces, sh_node);
+        if (idp) {
+            free(idp->name);
+            idp_lookup[idp->lport_id] = NULL;
+            free(idp);
+            shash_delete(&all_interfaces, sh_node);
+        }
     }
 } /* del_old_interface */
 
@@ -1040,26 +1043,26 @@ update_interface_cache(void)
 
     VLOG_DBG("Update Interface cache");
     struct shash sh_idl_interfaces;
-    const struct ovsrec_interface *ifrow;
+    const struct ovsrec_port *portrow;
     struct shash_node *sh_node, *sh_next;
     int rc = 0;
     /* Collect all the interfaces in the DB. */
     shash_init(&sh_idl_interfaces);
-    OVSREC_INTERFACE_FOR_EACH(ifrow, idl) {
-        if (strncmp(ifrow->type,OVSREC_INTERFACE_TYPE_SYSTEM,strlen(ifrow->type))!=0)
+    OVSREC_PORT_FOR_EACH(portrow, idl) {
+        if (!mstpd_is_valid_port_row(portrow))
         {
             continue;
         }
-        if (!shash_add_once(&sh_idl_interfaces, ifrow->name, ifrow)) {
-            VLOG_DBG("interface %s specified twice", ifrow->name);
+        if (!shash_add_once(&sh_idl_interfaces, portrow->name, portrow)) {
+            VLOG_DBG("interface %s specified twice", portrow->name);
         }
     }
 
     /* Delete old interfaces. */
     SHASH_FOR_EACH_SAFE(sh_node, sh_next, &all_interfaces) {
-        struct iface_data *idp =
+        const struct ovsrec_port *prow =
             shash_find_data(&sh_idl_interfaces, sh_node->name);
-        if (!idp) {
+        if (!prow) {
             VLOG_DBG("Found a deleted interface %s", sh_node->name);
             del_old_interface(sh_node);
         }
@@ -1067,20 +1070,32 @@ update_interface_cache(void)
 
     /* Add new interfaces. */
     SHASH_FOR_EACH(sh_node, &sh_idl_interfaces) {
+        const struct ovsrec_port *prow;
+        const struct ovsrec_interface *ifrow;
         struct iface_data *idp =
             shash_find_data(&all_interfaces, sh_node->name);
         if (!idp) {
             VLOG_DBG("Found an added interface %s", sh_node->name);
-            add_new_interface(sh_node->data);
+            prow = sh_node->data;
+            if (!prow) {
+                continue;
+            }
+            ifrow = prow->interfaces[0];
+            add_new_interface(ifrow);
             rc++;
         }
     }
     /* Check for changes in the interface row entries. */
     SHASH_FOR_EACH(sh_node, &all_interfaces) {
         struct iface_data *idp = sh_node->data;
-        const struct ovsrec_interface *ifrow =
+        const struct ovsrec_interface *ifrow;
+        const struct ovsrec_port *prow =
             shash_find_data(&sh_idl_interfaces, sh_node->name);
 
+        ifrow = prow->interfaces[0];
+        if (!ifrow) {
+            continue;
+        }
         /* Check for changes to row. */
         if (OVSREC_IDL_IS_ROW_INSERTED(ifrow, idl_seqno) ||
             OVSREC_IDL_IS_ROW_MODIFIED(ifrow, idl_seqno)) {
@@ -2260,6 +2275,47 @@ util_get_cist_port(const char *if_name) {
 }
 
 
+/**PROC+****************************************************************
+ * Name:    mstpd_is_valid_port_row
+ *
+ * Purpose:  validates port row whether mstpd required or not
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ **PROC-*****************************************************************/
+bool
+mstpd_is_valid_port_row(const struct ovsrec_port *prow)
+{
+    bool retval = false;
+    const struct ovsrec_interface *ifrow;
+
+    if(!prow) {
+        return retval;
+    }
+
+    if (!VERIFY_LAG_IFNAME(prow->name)) {
+            retval = false;
+    } else if (prow->n_interfaces == 1) {
+        ifrow = prow->interfaces[0];
+        if (!ifrow) {
+            retval = false;
+        } else {
+            if (strncmp(ifrow->type,OVSREC_INTERFACE_TYPE_SYSTEM,
+                strlen(ifrow->type))!=0) {
+                retval = false;
+            } else {
+                retval = true;
+            }
+        }
+    } else {
+        retval = false;
+    }
+
+    return retval;
+}
+
 /**PROC+***********************************************************
  * Name:    util_add_default_ports_to_mist
  *
@@ -2308,17 +2364,20 @@ util_add_default_ports_to_mist() {
 
 
         for (j=0,i=0; i<bridge_row->n_ports; i++) {
+            if (!bridge_row->ports[i]) {
+                /* Invalid port row */
+                continue;
+            }
 
             /* create CIST_port entry */
             if ((strcmp(bridge_row->ports[i]->name,"bridge_normal") == 0)) {
                 continue;
             }
-            if (((bridge_row->ports[i]->n_interfaces == 1) &&
-                        (strncmp(bridge_row->ports[i]->interfaces[0]->type,OVSREC_INTERFACE_TYPE_SYSTEM, strlen(bridge_row->ports[i]->interfaces[0]->type))!=0)))
+            if (!mstpd_is_valid_port_row(bridge_row->ports[i]))
             {
+                /* port row not interested by mstp */
                 continue;
             }
-
 
             mstp_port_row = (struct ovsrec_mstp_instance_port *)util_get_mist_port(bridge_row->ports[i]->name, mstp_row);
             if(mstp_port_row) {
@@ -2371,6 +2430,7 @@ util_add_default_ports_to_mist() {
         ovsdb_idl_txn_destroy(txn);
     }
 }
+
 /**PROC+***********************************************************
  * Name:    util_add_default_ports_to_cist
  *
@@ -2434,13 +2494,19 @@ util_add_default_ports_to_cist() {
     }
 
     for (i = 0,j =0 ; i < bridge_row->n_ports; i++) {
+
+        if(!bridge_row->ports[i])
+        {
+            /*Invalid port */
+            continue;
+        }
         /* create CIST_port entry */
         if (strcmp(bridge_row->ports[i]->name,"bridge_normal") == 0) {
             continue;
         }
-        if (((bridge_row->ports[i]->n_interfaces == 1) &&
-                (strncmp(bridge_row->ports[i]->interfaces[0]->type,OVSREC_INTERFACE_TYPE_SYSTEM, strlen(bridge_row->ports[i]->interfaces[0]->type))!=0)))
+        if (!mstpd_is_valid_port_row(bridge_row->ports[i]))
         {
+            /* port row not interested by mstp */
             continue;
         }
         cist_port_row = (struct ovsrec_mstp_common_instance_port *)util_get_cist_port(bridge_row->ports[i]->name);
@@ -3416,13 +3482,18 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         /* FILL the default values for CIST_port entry */
         for (i = 0; i < bridge_row->n_ports; i++)
         {
+            if(!bridge_row->ports[i])
+            {
+               /* invalid port */
+               continue;
+            }
             if(strcmp(bridge_row->ports[i]->name,name) == 0)
             {
                 found = true;
                 break;
             }
         }
-        if ((found && !bridge_row->ports[i]) || (i == bridge_row->n_ports))
+        if (false == found)
         {
             ovsdb_idl_txn_destroy(txn);
             MSTP_OVSDB_UNLOCK;
@@ -3578,13 +3649,18 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             bool found = false;
             for (k = 0; k < bridge_row->n_ports; k++)
             {
+                if(!bridge_row->ports[k])
+                {
+                    /* invalid port entry */
+                    continue;
+                }
                 if(strcmp(bridge_row->ports[k]->name,name) == 0)
                 {
                     found = true;
                     break;
                 }
             }
-            if ((found && !bridge_row->ports[i]) || (i == bridge_row->n_ports))
+            if (false == found)
             {
                 ovsdb_idl_txn_destroy(txn);
                 MSTP_OVSDB_UNLOCK;
