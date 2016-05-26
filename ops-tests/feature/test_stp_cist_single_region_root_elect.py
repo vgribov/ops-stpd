@@ -28,13 +28,23 @@ import re
 import time
 
 TOPOLOGY = """
-#                    +-----------+
+#                                        +---------+
+#                         +-------------->   hs1   |
+#                         |              |         |
+#                         |              +---------+
+#                         |
+#                    +----+------+
 #      +------------->   ops1    <------------+
 #      |             +-----------+            |
 #      |                                      |
 #+-----v-----+                           +----v-----+
 #|   ops2    <--------------------------->   ops3   |
-#+-----------+                           +----------+
+#+-----+-----+                           +----------+
+#      |
+#      |                                 +----------+
+#      |                                 |  hs2     |
+#      +--------------------------------->          |
+#                                        +----------+
 #
 # Nodes
 [type=openswitch name="OpenSwitch 1"] ops1
@@ -130,7 +140,7 @@ def ops_check_root_bridge_relayed_prot_params(root_show, ops_show):
 
 
 @mark.platform_incompatible(['docker'])
-def test_cist_single_region_root_elect(topology):
+def test_stp_cist_single_region_root_elect(topology):
     """
     Test that a cist in single region is functional with a OpenSwitch switch.
 
@@ -158,13 +168,11 @@ def test_cist_single_region_root_elect(topology):
     ops3_port1 = ops3.ports['1']
     ops3_port2 = ops3.ports['2']
 
-    '''
     # Configure IP and bring UP host 1 interfaces
     hs1.libs.ip.interface('1', addr='10.0.0.1/24', up=True)
 
     # Configure IP and bring UP host 2 interfaces
     hs2.libs.ip.interface('1', addr='10.0.0.2/24', up=True)
-    '''
 
     for ops in [ops1, ops2, ops3]:
         enable_l2port(ops, '1')
@@ -174,12 +182,10 @@ def test_cist_single_region_root_elect(topology):
 
         config_mstp_region(ops, REGION_1, VERSION, HELLO_TIME)
 
-    '''
     enable_l2port(ops1, '4')
     enable_l2port(ops2, '4')
     for switch, portlbl in [(ops1, '4'), (ops2, '4')]:
         wait_until_interface_up(switch, portlbl)
-    '''
 
     for ops in [ops1, ops2, ops3]:
         with ops.libs.vtysh.Configure() as ctx:
@@ -266,10 +272,9 @@ def test_cist_single_region_root_elect(topology):
     for ops_show in [ops1_show, ops2_show, ops3_show]:
         ops_check_root_bridge_relayed_prot_params(root_show, ops_show)
 
-    '''
     ping = hs1.libs.ping.ping(10, '10.0.0.2')
-    assert ping['transmitted'] == ping['received'] >= 7
-    '''
+    assert(ping['transmitted'] >= 7 and ping['received'] >= 7), \
+        "Ping between host failed after convergence"
 
     priority = PRIORITY
     root_sw = None
@@ -302,7 +307,8 @@ def test_cist_single_region_root_elect(topology):
 
     '''
     ping = hs1.libs.ping.ping(10, '10.0.0.2')
-    assert ping['transmitted'] == ping['received'] >= 7
+    assert(ping['transmitted'] >= 7 and ping['received'] >= 7), \
+        "Ping between host failed after convergence"
     '''
 
     for ops in [ops1, ops2, ops3]:
