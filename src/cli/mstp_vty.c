@@ -401,11 +401,7 @@ cli_show_spanning_tree_config(bool detail) {
 static int
 cli_show_mstp_config() {
     const struct ovsrec_bridge *bridge_row = NULL;
-    const struct ovsrec_mstp_instance *mstp_row = NULL;
-    int i = 0, j = 0;
-    struct shash sorted_vlan_id;
-    char str[15] = {0};
-    const struct shash_node **vlan_nodes = NULL;
+    int i = 0;
 
     bridge_row = ovsrec_bridge_first(idl);
     if (!bridge_row) {
@@ -437,36 +433,11 @@ cli_show_mstp_config() {
 
     /* Loop for all instance in bridge table */
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
-        shash_init(&sorted_vlan_id);
-        memset(str, 0, 15);
-        mstp_row = bridge_row->value_mstp_instances[i];
-
-        /* Create the vlan shash list */
-        for (j=0; j<mstp_row->n_vlans; j++) {
-            sprintf(str, "%ld", mstp_row->vlans[j]->id);
-            if ( NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[j])) {
-                shash_destroy(&sorted_vlan_id);
-                return e_vtysh_ok;
-            }
-        }
-
-        /* Get the sorted list of vlans from shash */
-        vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
-        if(!vlan_nodes) {
-            shash_destroy(&sorted_vlan_id);
-            return e_vtysh_ok;
-        }
 
         /* Loop for all vlans in one MST instance table */
-        vty_out(vty,"%-15ld %ld", bridge_row->key_mstp_instances[i],
-                ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
-        for (j=1; j<mstp_row->n_vlans; j++) {
-            vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id);
-        }
+        vty_out(vty,"%-16ld", bridge_row->key_mstp_instances[i]);
+        print_vid_for_instance(bridge_row->key_mstp_instances[i]);
         vty_out(vty, "%s", VTY_NEWLINE);
-        shash_destroy(&sorted_vlan_id);
-        free(vlan_nodes);
-        vlan_nodes = NULL;
     }
     return e_vtysh_ok;
 }
@@ -486,11 +457,8 @@ mstp_show_common_instance_info(
     const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
     const struct ovsrec_system *system_row = NULL;
     int j = 0;
-    struct shash sorted_vlan_id;
-    const struct shash_node **vlan_nodes = NULL;
     const struct shash_node **cist_port_nodes = NULL;
     struct shash sorted_port_id;
-    char str[15] = {0};
     int64_t count = 0;
     char root_mac[OPS_MAC_STR_SIZE] = {0};
     int priority = 0, sys_id = 0;
@@ -501,28 +469,9 @@ mstp_show_common_instance_info(
         return e_vtysh_error;
     }
 
-    /* Create the vlan shash list */
-    shash_init(&sorted_vlan_id);
-    for (j=0; j<cist_row->n_vlans; j++) {
-        sprintf(str, "%ld", cist_row->vlans[j]->id);
-        if( NULL == shash_add(&sorted_vlan_id, str, (void *)cist_row->vlans[j])) {
-            shash_destroy(&sorted_vlan_id);
-            return e_vtysh_ok;
-        }
-    }
-
-    /* Get the sorted list of vlans from shash */
-    vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
-    shash_destroy(&sorted_vlan_id);
-
-    /* common instance table details */
     vty_out(vty, "%-14s %s%s  ", "#### MST0", VTY_NEWLINE, "Vlans mapped:");
-    if (cist_row->vlans) {
-        vty_out(vty, "%ld", ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
-        for (j=1; j<cist_row->n_vlans; j++) {
-            vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id);
-        }
-    }
+    print_vid_for_instance(MSTP_CISTID);
+
     vty_out(vty, "%s", VTY_NEWLINE);
     vty_out(vty, "%-14s %s:%-20s %s:%ld%s", "Bridge", "Address",
             system_row->system_mac, "priority",
@@ -604,7 +553,6 @@ mstp_show_common_instance_info(
     }
     shash_destroy(&sorted_port_id);
     free(cist_port_nodes);
-    free(vlan_nodes);
     return e_vtysh_ok;
 }
 
@@ -680,9 +628,6 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     const struct ovsrec_system *system_row = NULL;
     const struct ovsrec_mstp_instance_port *mstp_port = NULL;
     int j = 0;
-    struct shash sorted_vlan_id;
-    char str[15] = {0};
-    const struct shash_node **vlan_nodes = NULL;
     const struct shash_node **mstp_port_nodes = NULL;
     struct shash sorted_port_id;
     char root_mac[OPS_MAC_STR_SIZE] = {0};
@@ -700,31 +645,12 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
         return e_vtysh_error;
     }
 
-    /* Create the vlan shash list */
-    shash_init(&sorted_vlan_id);
-    for (j=0; j<mstp_row->n_vlans; j++) {
-        sprintf(str, "%ld", mstp_row->vlans[j]->id);
-        if (NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[j])) {
-            shash_destroy(&sorted_vlan_id);
-            return e_vtysh_ok;
-        }
-    }
-
-    /* Get the sorted list of vlans from shash */
-    vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
-    if(!vlan_nodes) {
-        shash_destroy(&sorted_vlan_id);
-        return e_vtysh_ok;
-    }
-
     vty_out(vty, "%s%s%ld%s%s  ", VTY_NEWLINE, "#### MST",
            inst_id, VTY_NEWLINE, "Vlans mapped:");
     if (mstp_row->vlans) {
-        vty_out(vty, "%ld", ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
-        for (j=1; j<mstp_row->n_vlans; j++) {
-            vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id);
-        }
+        print_vid_for_instance(inst_id);
     }
+
     vty_out(vty, "%s", VTY_NEWLINE);
     vty_out(vty, "%-14s %s:%-20s %s:%ld%s", "Bridge", "Address",
             system_row->system_mac, "Priority",
@@ -785,10 +711,8 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
                     DEF_LINK_TYPE, VTY_NEWLINE);
         }
     }
-    shash_destroy(&sorted_vlan_id);
     shash_destroy(&sorted_port_id);
     free(mstp_port_nodes);
-    free(vlan_nodes);
     return e_vtysh_ok;
 }
 
@@ -809,9 +733,6 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
     const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
     int i = 0;
-    struct shash sorted_vlan_id;
-    char str[15] = {0};
-    const struct shash_node **vlan_nodes = NULL;
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
@@ -885,38 +806,15 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 "Instance", "Role", "State", "Cost", "Priority", "Vlans mapped", VTY_NEWLINE);
         vty_out(vty, "%s %s%s", "-------------- --------------",
                 "---------- ---------- ---------- ----------", VTY_NEWLINE);
-        vty_out(vty, "%-14d %-14s %-10s %-10ld %-10ld", inst_id,
+        vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
                 mstp_port_row->port_role, mstp_port_row->port_state,
                 *mstp_port_row->admin_path_cost,
                 ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
 
         /* Vlans Mapped */
         if (mstp_row->vlans) {
-
-            /* Create the vlan shash list */
-            shash_init(&sorted_vlan_id);
-            for (i=0; i<mstp_row->n_vlans; i++) {
-                sprintf(str, "%ld", mstp_row->vlans[i]->id);
-                if (NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[i])) {
-                    shash_destroy(&sorted_vlan_id);
-                    return e_vtysh_ok;
-                }
-            }
-
-            /* Get the sorted list of vlans from shash */
-            vlan_nodes = mstp_util_sort_vlan_id(&sorted_vlan_id);
-            if(!vlan_nodes) {
-                shash_destroy(&sorted_vlan_id);
-                return e_vtysh_ok;
-            }
-
-            vty_out(vty, " %ld", ((const struct ovsrec_vlan *)vlan_nodes[0]->data)->id);
-            for (i=1; i<mstp_row->n_vlans; i++) {
-                vty_out(vty, ",%ld", ((const struct ovsrec_vlan *)vlan_nodes[i]->data)->id);
-            }
+            print_vid_for_instance(inst_id);
             vty_out(vty, "%s", VTY_NEWLINE);
-            shash_destroy(&sorted_vlan_id);
-            free(vlan_nodes);
         }
     }
     else {
@@ -2327,7 +2225,7 @@ DEFUN(cli_no_mstp_port_type,
       "no spanning-tree port-type",
       NO_STR
       SPAN_TREE
-      "Type of port\n") {
+      "Type of port (Default: Network port)\n") {
 
     mstp_cli_set_cist_port_table(vty->index, MSTP_ADMIN_EDGE, DEF_ADMIN_EDGE);
     return CMD_SUCCESS;

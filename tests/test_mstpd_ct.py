@@ -53,7 +53,7 @@ class mstpdTests(OpsVsiTest):
         debug(output)
 
         success = 0
-        if 'Vlans mapped:  2,1' in output or 'Vlans mapped:  1,2' in output:
+        if 'Vlans mapped:  1-4095' in output:
             success = 1
             info('\n### Passed: mstpd_add_vlan_to_cist ###')
         else:
@@ -72,7 +72,7 @@ class mstpdTests(OpsVsiTest):
         output += s1.cmd("echo")
         debug(output)
 
-        assert ('Vlans mapped:  1' in output),\
+        assert ('Vlans mapped:  1-4095' in output),\
             "Failed: mstpd_remove_vlan_from_cist"
 
     def mstpd_add_ports_to_cist(self):
@@ -80,11 +80,9 @@ class mstpdTests(OpsVsiTest):
         s1 = self.net.switches[0]
 
         s1.cmdCLI("configure terminal")
-        s1.cmdCLI("no spanning-tree")
         s1.cmdCLI("interface 1")
         s1.cmdCLI("no routing")
         s1.cmdCLI("exit")
-        s1.cmdCLI("spanning-tree")
         s1.cmdCLI("end")
         output = s1.cmdCLI("show spanning-tree")
         output += s1.cmd("echo")
@@ -98,11 +96,9 @@ class mstpdTests(OpsVsiTest):
         s1 = self.net.switches[0]
 
         s1.cmdCLI("configure terminal")
-        s1.cmdCLI("no spanning-tree")
         s1.cmdCLI("interface 1")
         s1.cmdCLI("routing")
         s1.cmdCLI("exit")
-        s1.cmdCLI("spanning-tree")
         s1.cmdCLI("end")
         output = s1.cmdCLI("show spanning-tree")
         output += s1.cmd("echo")

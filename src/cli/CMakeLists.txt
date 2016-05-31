@@ -42,7 +42,9 @@ include_directories (${INCL_DIR}
 
 # CLI libraries source files
 set (SOURCES_CLI ${PROJECT_SOURCE_DIR}/mstp_vty.c
-                 ${PROJECT_SOURCE_DIR}/vtysh_ovsdb_mstp_context.c)
+                 ${PROJECT_SOURCE_DIR}/vtysh_ovsdb_mstp_context.c
+                 ${PROJECT_SOURCE_DIR}/../mstpd_inlines.c
+                 ${PROJECT_SOURCE_DIR}/mstp_cli_util.c)
 
 add_library (${LIBMSTPDCLI} SHARED ${SOURCES_CLI})
 

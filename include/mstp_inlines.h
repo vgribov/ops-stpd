@@ -17,8 +17,9 @@
 
 #ifndef INLINES_H
 #define INLINES_H
+
+#include "mstp_mapping.h"
 #include <assert.h>
-#include "mstp_fsm.h"
 
 void storeShortInPacket(uint16_t *packetPtr, uint16_t value);
 void storeLongInPacket(uint32_t *packetPtr, uint32_t value);
