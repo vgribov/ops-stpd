@@ -37,7 +37,6 @@
 #include <mqueue.h>
 #include <assert.h>
 #include "mstp_inlines.h"
-#include "mstp_fsm.h"
 #include <openssl/md5.h>
 
 /* inlines.c in libw.ss compiles this code into library routines by define
