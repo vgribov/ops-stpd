@@ -1627,10 +1627,10 @@ void update_mstp_msti_port_config(mstpd_message *pmsg)
     mstiPortPtr = MSTP_MSTI_PORT_PTR(mstid, lport);
     MSTP_SET_PORT_NUM(mstiPortPtr->portId,lport);
     if(MSTP_GET_PORT_PRIORITY(mstiPortPtr->portId) !=
-            msti_port_config->priority)
+            msti_port_config->priority * PORT_PRIORITY_MULTIPLIER)
     {
         MSTP_SET_PORT_PRIORITY(mstiPortPtr->portId,
-                msti_port_config->priority);
+                msti_port_config->priority * PORT_PRIORITY_MULTIPLIER);
         if(MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,
                     MSTP_PORT_PORT_ENABLED) && MSTP_ENABLED)
         {/* Port is 'Enabled' and the priority value has changed,
