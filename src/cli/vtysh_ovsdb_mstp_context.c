@@ -219,7 +219,7 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
                 }
                 if (mstp_port_row->admin_path_cost &&
                         (*mstp_port_row->admin_path_cost != DEF_MSTP_COST)) {
-                    vtysh_ovsdb_cli_print(p_msg, "%4s%s%ld %s %ld", "",
+                    vtysh_ovsdb_cli_print(p_msg, "%4s%s %ld %s %ld", "",
                             "spanning-tree instance",
                             bridge_row->key_mstp_instances[i],
                             "cost",
