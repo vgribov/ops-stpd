@@ -2928,6 +2928,18 @@ void cli_post_init(void) {
     install_element(INTERFACE_NODE, &cli_mstp_cost_cmd);
     install_element(INTERFACE_NODE, &cli_no_mstp_cost_cmd);
 
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_bpdu_enable_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_bpdu_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_bpdu_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_bpdu_enable_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_port_type_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_port_type_admin_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_port_type_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_port_priority_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_port_priority_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_cost_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_cost_cmd);
+
     /* MSTP Inst Table */
     install_element(CONFIG_NODE, &cli_mstp_inst_vlanid_cmd);
     install_element(CONFIG_NODE, &cli_no_mstp_inst_vlanid_cmd);
@@ -2940,6 +2952,10 @@ void cli_post_init(void) {
     install_element(INTERFACE_NODE, &cli_no_mstp_inst_port_priority_cmd);
     install_element(INTERFACE_NODE, &cli_mstp_inst_cost_cmd);
     install_element(INTERFACE_NODE, &cli_no_mstp_inst_cost_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_inst_port_priority_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_inst_port_priority_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_mstp_inst_cost_cmd);
+    install_element(LINK_AGGREGATION_NODE, &cli_no_mstp_inst_cost_cmd);
     #if 0
     install_element(INTERFACE_NODE, &cli_mstp_inst_port_state_cmd);
     install_element(INTERFACE_NODE, &cli_mstp_port_state_cmd);
