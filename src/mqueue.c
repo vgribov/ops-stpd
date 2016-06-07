@@ -28,6 +28,36 @@
 #include "mqueue.h"
 
 int
+mqueue_free(mqueue_t *queue, int *ptr_free_msg_count)
+{
+    qelem_t *new_elem;
+    void *msg_data = NULL;
+    int count = 0;
+
+    if ((NULL == queue) || (NULL == ptr_free_msg_count)) {
+        return EINVAL;
+    }
+    pthread_mutex_lock(&(queue->q_mutex));
+
+    new_elem = queue->q_head.q_forw;
+    while(new_elem != &(queue->q_tail)) {
+        remque(queue->q_head.q_forw);
+        msg_data = new_elem->q_data;
+        free(msg_data);
+        count++;
+        free(new_elem);
+        new_elem = queue->q_head.q_forw;
+    }
+
+    if (sem_init(&(queue->q_avail), 0, 0) != 0) {
+        return errno;
+    }
+    *ptr_free_msg_count = count;
+    pthread_mutex_unlock(&(queue->q_mutex));
+    return 0;
+}
+
+int
 mqueue_init(mqueue_t *queue)
 {
     pthread_mutex_init(&(queue->q_mutex), NULL);

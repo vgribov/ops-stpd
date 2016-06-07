@@ -35,6 +35,7 @@ typedef struct mqueue {
 } mqueue_t;
 
 extern int mqueue_init(mqueue_t *queue);
+extern int mqueue_free(mqueue_t *queue, int *ptr_msg_count);
 extern int mqueue_send(mqueue_t *queue, void *data);
 extern int mqueue_wait(mqueue_t *queue, void **data);
 

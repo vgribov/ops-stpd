@@ -50,6 +50,7 @@
 #include <net/if.h>
 #include <assert.h>
 
+#include "mstp.h"
 #include "mstp_ovsdb_if.h"
 #include "mstp_cmn.h"
 #include "mqueue.h"
@@ -108,17 +109,8 @@ uint16_t n_msti = 0;
  */
 static struct shash all_interfaces = SHASH_INITIALIZER(&all_interfaces);
 
-/**
- * A hash map of daemon's internal data for all the ports maintained by mstpd.
- **/
-static struct shash all_ports = SHASH_INITIALIZER(&all_ports);
-
-
 /* Mapping of all the VLANs. */
 static struct shash all_vlans = SHASH_INITIALIZER(&all_vlans);
-
-/* Mapping of all the MSTP Instances. */
-static struct shash all_mstp_instances = SHASH_INITIALIZER(&all_mstp_instances);
 
 /*************************************************************************//**
  * @ingroup mstpd_ovsdb_if
@@ -1002,6 +994,7 @@ del_old_interface(struct shash_node *sh_node)
             if (!VERIFY_LAG_IFNAME(idp->name)) {
                 mstpd_free_lag_id((idp->lport_id - MAX_PPORTS));
             }
+            deregister_stp_mcast_addr(idp->lport_id);
             free(idp->name);
             idp_lookup[idp->lport_id] = NULL;
             free(idp);
@@ -1938,7 +1931,7 @@ int mstp_cist_config_update(void) {
         clear_vid_map(&cist_vlan_list);
         for (i = 0; i < cist_row->n_vlans; i++) {
             if (cist_row->vlans[i]) {
-            vlan_row = cist_row->vlans[i];
+                vlan_row = cist_row->vlans[i];
             }
             set_vid(&cist_vlan_list,vlan_row->id);
         }
@@ -2389,6 +2382,48 @@ void clear_mstp_msti_config() {
         }
     }
 }
+
+/**PROC+***********************************************************
+ * Name:    clear_interface_cache
+ *
+ * Purpose: Clear Interface cache
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ **PROC-*****************************************************************/
+
+void clear_interface_cache()
+{
+    struct shash_node *sh_node = NULL, *sh_next = NULL;
+ /* Delete Interfaces. */
+    SHASH_FOR_EACH_SAFE(sh_node, sh_next, &all_interfaces) {
+            del_old_interface(sh_node);
+    }
+}
+
+/**PROC+***********************************************************
+ * Name:    clear_vlan_cache
+ *
+ * Purpose: Clear VLAN cache
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ *
+ **PROC-*****************************************************************/
+
+void clear_vlan_cache()
+{
+    struct shash_node *sh_node = NULL, *sh_next = NULL;
+ /* Delete VLANS. */
+    SHASH_FOR_EACH_SAFE(sh_node, sh_next, &all_vlans) {
+            del_old_vlan(sh_node);
+    }
+}
+
+
 /**PROC+***********************************************************
  * Name:    clear_mstp_msti_port_config
  *
@@ -2431,6 +2466,15 @@ mstp_config_reinit() {
     clear_mstp_cist_port_config();
     clear_mstp_msti_config();
     clear_mstp_msti_port_config();
+    clear_interface_cache();
+    clear_port_map(&l2ports);
+    clear_vlan_cache();
+    clearBitmap(&mstp_instance_map.map[0],MSTP_INSTANCES_MAX);
+    n_l2ports = 1;
+    n_msti = 0;
+    update_interface_cache();
+    update_l2port_cache();
+    update_vlan_cache();
     mstp_cist_config_update();
     mstp_cist_port_config_update();
     mstp_msti_update_config();
@@ -3530,18 +3574,23 @@ void handle_vlan_add_in_mstp_config(int vlan)
     int i = 0, vid = 0;
     const struct ovsrec_mstp_instance *msti_row = NULL;
     bool vlan_found = FALSE;
+    bool cist_vlan_found = FALSE;
+    bool msti_vlan_found = FALSE;
 
     MSTP_OVSDB_LOCK;
     txn = ovsdb_idl_txn_create(idl);
     if (vlan) {
         OVSREC_VLAN_FOR_EACH(vlan_row, idl) {
             if (vlan == vlan_row->id) {
+                vlan_found = TRUE;
                 break;
             }
         }
-        if (!vlan_row) {
+        if (!vlan_found) {
             ovsdb_idl_txn_commit_block(txn);
             ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+            return;
         }
     }
 
@@ -3550,11 +3599,10 @@ void handle_vlan_add_in_mstp_config(int vlan)
         {
             if (vlan == msti_row->vlans[vid]->id)
             {
-                vlan_found = TRUE;
+                msti_vlan_found = TRUE;
             }
         }
     }
-
     cist_row = ovsrec_mstp_common_instance_first(idl);
     if (cist_row)
     {
@@ -3562,11 +3610,11 @@ void handle_vlan_add_in_mstp_config(int vlan)
         {
             if (vlan == cist_row->vlans[vid]->id)
             {
-                vlan_found = TRUE;
+                cist_vlan_found = TRUE;
             }
         }
     }
-    if (!vlan_found)
+    if (!cist_vlan_found && !msti_vlan_found)
     {
         /* MSTP instance not found with the incoming instID */
         if(cist_row) {

@@ -2401,8 +2401,7 @@ typedef uint8_t MSTP_TCM_STATE_t;
  *---------------------------------------------------------------------------*/
 typedef enum
 {
-   path_cost_invalid   = -1, /* on bttf compiler needs to be made to pick
-                              * signed type for this enum                    */
+   path_cost_invalid   = -1,
    path_cost_8021d     = 1,
    path_cost_8021t     = 2,
    path_cost_prop      = 3

@@ -135,6 +135,25 @@ mstp_init_event_rcvr(void)
 } /* mstp_init_event_rcvr */
 
 int
+mstp_free_event_queue(void)
+{
+    int rc;
+    int free_msg_count = 0;
+
+    rc = mqueue_free(&mstpd_main_rcvq,&free_msg_count);
+    if (rc) {
+        VLOG_ERR("Failed MSTP main free queue: %s",
+                 strerror(rc));
+    }
+    else
+    {
+        VLOG_INFO("MSTP FREE_MESSAGE Queue count : %d", free_msg_count);
+    }
+
+    return rc;
+} /* mstp_init_event_rcvr */
+
+int
 mstpd_send_event(mstpd_message *pmsg)
 {
     int rc;
@@ -483,7 +502,7 @@ mstpd_protocol_thread(void *arg)
             update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_add);
             update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_add);
             update_mstp_on_lport_add(lport);
-            if (mstp_enable)
+            if (MSTP_ENABLED)
             {
                 register_stp_mcast_addr(lport);
                 mstp_addLport(lport);
@@ -508,7 +527,7 @@ mstpd_protocol_thread(void *arg)
             intf_get_port_name(lport,port);
             update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_delete);
             update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_delete);
-            if (mstp_enable)
+            if (MSTP_ENABLED)
             {
                 deregister_stp_mcast_addr(lport);
                 mstp_removeLport(lport);
@@ -845,6 +864,8 @@ mstp_checkDynReconfigChanges(void)
    }
 
    MSTP_DYN_CFG_PRINTF("!DYN RECONFIG: %s", "start");
+   mstp_free_event_queue();
+   Spanning = false;
 
    /*------------------------------------------------------------------------
     * Remove from the queue all pending MSTP messages to DB
@@ -862,7 +883,6 @@ mstp_checkDynReconfigChanges(void)
     * clear in-memory data used by MSTP
     *---------------------------------------------------------------------*/
    mstp_clearProtocolData();
-   Spanning = false;
    mstp_config_reinit();
 
 
