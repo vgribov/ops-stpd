@@ -664,7 +664,7 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
 
     vty_out(vty, "%-14s Address:%-20s Priority:%ld%s", "Root",
             root_mac,
-            (mstp_row->root_priority)?*mstp_row->root_priority:(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
+            (mstp_row->root_priority)?(*mstp_row->root_priority + inst_id):(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
     vty_out(vty, "%19s:%s, Cost:%ld, Rem Hops:%ld%s", "Port",
