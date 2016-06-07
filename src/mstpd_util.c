@@ -5955,7 +5955,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
        mstp_util_set_msti_table_string(ROOT_PORT, root_port, mstid);
    }
    MSTP_MSTI_ROOT_PRIORITY(mstid) = mstiRootPriVec;
-   mstp_util_set_msti_table_value(ROOT_PRIORITY,MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID.priority,mstid);
+   mstp_util_set_msti_table_value(ROOT_PRIORITY,(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID.priority-mstid),mstid);
 
    /*-------------------------------------------------------------------------
     * Calculate the Bridge's Root Times ('rootTimes') for the MSTI.
@@ -6050,7 +6050,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[3],mstiPortPtr->designatedPriority.rgnRootID.mac_address[4],
                  mstiPortPtr->designatedPriority.rgnRootID.mac_address[5]);
          mstp_util_set_msti_port_table_string(DESIGNATED_ROOT,designatedRoot,mstid,lport);
-         mstp_util_set_msti_port_table_value(DESIGNATED_ROOT_PRIORITY,mstiPortPtr->designatedPriority.rgnRootID.priority,mstid,lport);
+         mstp_util_set_msti_port_table_value(DESIGNATED_ROOT_PRIORITY,(mstiPortPtr->designatedPriority.rgnRootID.priority-mstid),mstid,lport);
          mstp_util_set_msti_port_table_value(DESIGNATED_COST,mstiPortPtr->designatedPriority.intRootPathCost,mstid,lport);
 
          /*-------------------------------------------------------------------
@@ -6065,7 +6065,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[3],mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[4],
                  mstiPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
          mstp_util_set_msti_port_table_string(DESIGNATED_BRIDGE,designatedRoot,mstid,lport);
-         mstp_util_set_msti_port_table_value(DESIGNATED_BRIDGE_PRIORITY,mstiPortPtr->designatedPriority.dsnBridgeID.priority,mstid,lport);
+         mstp_util_set_msti_port_table_value(DESIGNATED_BRIDGE_PRIORITY,(mstiPortPtr->designatedPriority.dsnBridgeID.priority-mstid),mstid,lport);
 
          /*-------------------------------------------------------------------
           * 3). Substitute 'DesignatedPortID' with this Port Identifier
