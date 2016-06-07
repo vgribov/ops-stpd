@@ -892,7 +892,6 @@ void update_mstp_global_config(mstpd_message *pmsg)
 {
     struct mstp_global_config *global_config = NULL;
     global_config = (mstp_global_config *)pmsg->msg;
-    bool status = FALSE;
 
     if(memcmp(mstp_Bridge.MstConfigId.configName, global_config->config_name,
                 MSTP_MST_CONFIG_NAME_LEN))
@@ -912,14 +911,6 @@ void update_mstp_global_config(mstpd_message *pmsg)
         {
             MSTP_DYN_RECONFIG_CHANGE = TRUE;
         }
-    }
-    if (status == TRUE && Spanning == FALSE)
-    {
-        Spanning = TRUE;
-    }
-    else if (status == FALSE && Spanning == TRUE)
-    {
-        Spanning = FALSE;
     }
     VLOG_DBG("Config Change in GLOBAL: %d", MSTP_DYN_RECONFIG_CHANGE);
 }

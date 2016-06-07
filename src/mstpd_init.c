@@ -566,18 +566,6 @@ mstp_initCommonPortData(LPORT_t lport,bool init)
    STP_ASSERT(IS_VALID_LPORT(lport));
 
    commPortPtr = MSTP_COMM_PORT_PTR(lport);
-   /*---------------------------------------------------------------------
-    * Clear all bits in boolean flags bit map, they will be set in the
-    * called below 'update' routines with the values read from config
-    *---------------------------------------------------------------------*/
-   //memset(commPortPtr->bitMap, FALSE, sizeof(commPortPtr->bitMap));
-
-   /*---------------------------------------------------------------------
-    * Clear Per-Port Variables (802.1Q-REV/D5.0), they will be set in the
-    * called below 'update' routines with the values read from config
-    *---------------------------------------------------------------------*/
-   commPortPtr->adminPointToPointMAC = MSTP_ADMIN_PPMAC_UNKNOWN; /* 13.18 */
-
    /*------------------------------------------------------------------------
     * Initialize CIST Port Priority (802.1Q-REV/D5.0 13.24.12)
     * Initialize Port's 'HelloTime' parameter (802.1Q-REV/D5.0 13.22 j))
