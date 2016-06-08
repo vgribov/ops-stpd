@@ -468,6 +468,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_topology_change_count);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_vlans);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_root_priority);
+    ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_remaining_hops);
 
     /* mstp instance port table */
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_port_col_designated_bridge);
@@ -3377,6 +3378,9 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
     else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
         ovsrec_mstp_instance_set_topology_change_count(msti_row, &value, 1);
     }
+    else if (strcmp(key, REMAINING_HOPS) == 0) {
+        ovsrec_mstp_instance_set_remaining_hops(msti_row, &value, 1);
+    }
 }
 
 /**PROC+***********************************************************
@@ -3542,7 +3546,10 @@ void handle_vlan_add_in_mstp_config(int vlan)
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
     const struct ovsrec_vlan *vlan_row = NULL;
     struct ovsrec_vlan **vlans = NULL;
-    int i = 0;
+    int i = 0, vid = 0;
+    const struct ovsrec_mstp_instance *msti_row = NULL;
+    bool vlan_found = FALSE;
+
     MSTP_OVSDB_LOCK;
     txn = ovsdb_idl_txn_create(idl);
     if (vlan) {
@@ -3556,23 +3563,47 @@ void handle_vlan_add_in_mstp_config(int vlan)
             ovsdb_idl_txn_destroy(txn);
         }
     }
+
+    OVSREC_MSTP_INSTANCE_FOR_EACH(msti_row, idl) {
+        for(vid = 0; vid < msti_row->n_vlans; vid++)
+        {
+            if (vlan == msti_row->vlans[vid]->id)
+            {
+                vlan_found = TRUE;
+            }
+        }
+    }
+
     cist_row = ovsrec_mstp_common_instance_first(idl);
-    /* MSTP instance not found with the incoming instID */
-    if(cist_row) {
-        /* Push the complete vlan list to MSTP instance table
-         * including the new vlan*/
-        vlans =
-            xcalloc(cist_row->n_vlans + 1, sizeof *cist_row->vlans);
-        if (!vlans) {
-            ovsdb_idl_txn_commit_block(txn);
-            ovsdb_idl_txn_destroy(txn);
+    if (cist_row)
+    {
+        for(vid = 0; vid < cist_row->n_vlans; vid++)
+        {
+            if (vlan == cist_row->vlans[vid]->id)
+            {
+                vlan_found = TRUE;
+            }
         }
-        for (i = 0; i < cist_row->n_vlans; i++) {
-            vlans[i] = cist_row->vlans[i];
+    }
+    if (!vlan_found)
+    {
+        /* MSTP instance not found with the incoming instID */
+        if(cist_row) {
+            /* Push the complete vlan list to MSTP instance table
+             * including the new vlan*/
+            vlans =
+                xcalloc(cist_row->n_vlans + 1, sizeof *cist_row->vlans);
+            if (!vlans) {
+                ovsdb_idl_txn_commit_block(txn);
+                ovsdb_idl_txn_destroy(txn);
+            }
+            for (i = 0; i < cist_row->n_vlans; i++) {
+                vlans[i] = cist_row->vlans[i];
+            }
+            vlans[cist_row->n_vlans] = (struct ovsrec_vlan *)vlan_row;
+            ovsrec_mstp_common_instance_set_vlans(cist_row, vlans,
+                    cist_row->n_vlans + 1);
         }
-        vlans[cist_row->n_vlans] = (struct ovsrec_vlan *)vlan_row;
-        ovsrec_mstp_common_instance_set_vlans(cist_row, vlans,
-                cist_row->n_vlans + 1);
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);

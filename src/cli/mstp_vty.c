@@ -321,7 +321,7 @@ cli_show_spanning_tree_config(bool detail) {
 
     vty_out(vty, "%s%s", "MST0", VTY_NEWLINE);
     vty_out(vty, "  %s%s", "Spanning tree status: Enabled", VTY_NEWLINE);
-    vty_out(vty, "  %-10s %-10s: %-20d%s", "Root ID", "Priority",
+    vty_out(vty, "  %-10s %-10s : %-20d%s", "Root ID", "Priority",
                     priority, VTY_NEWLINE);
 
     vty_out(vty, "  %22s: %-20s%s", "MAC-Address", root_mac, VTY_NEWLINE);
@@ -375,8 +375,8 @@ cli_show_spanning_tree_config(bool detail) {
     for(i=0; i<count; i++) {
         cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
         vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
-                cist_port->port->name, cist_port->port_role,
-                cist_port->port_state, *cist_port->admin_path_cost,
+                cist_port->port->name, cist_port->port_role, cist_port->port_state,
+                (cist_port->cist_path_cost)?(*cist_port->cist_path_cost):0,
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                 cist_port->link_type, VTY_NEWLINE);
     }
@@ -547,7 +547,8 @@ mstp_show_common_instance_info(
         cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[j]->data;
         vty_out(vty, "%-14s %-14s %-10s %-10ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
-                cist_port->port_state, *cist_port->admin_path_cost,
+                cist_port->port_state,
+                (cist_port->cist_path_cost)?*cist_port->cist_path_cost:0,
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                 cist_port->link_type, VTY_NEWLINE);
     }
@@ -706,7 +707,7 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
             vty_out(vty, "%-14s %-14s %-10s %-7ld %-10ld %s%s",
                     mstp_port->port->name, mstp_port->port_role,
                     mstp_port->port_state,
-                    (mstp_port->admin_path_cost)?*mstp_port->admin_path_cost:DEF_MSTP_COST,
+                    (mstp_port->designated_cost)?*mstp_port->designated_cost:0,
                     ((*mstp_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                     DEF_LINK_TYPE, VTY_NEWLINE);
         }
@@ -857,7 +858,28 @@ cli_show_mst(int inst_id, bool detail_flag) {
         return e_vtysh_error;
     }
 
-    if (inst_id != MSTP_INVALID_ID) {
+    /* Display MST instance data for all instance including CIST*/
+    if(inst_id == MSTP_INVALID_ID){
+        /* Display common instance data */
+        mstp_show_common_instance_info(cist_row);
+
+        /* Loop for all instance in bridge table */
+        for (int i=0; i < bridge_row->n_mstp_instances; i++) {
+            mstp_row = bridge_row->value_mstp_instances[i];
+            if (!mstp_row) {
+                assert(0);
+                return e_vtysh_error;
+            }
+            vty_out(vty, "%s", VTY_NEWLINE);
+            mstp_show_instance_info(cist_row, bridge_row->key_mstp_instances[i], mstp_row);
+        }
+    }
+
+    else if (inst_id == MSTP_CISTID) {
+        /* Display common instance data */
+        mstp_show_common_instance_info(cist_row);
+    }
+    else {
         /* check the MST instance exist */
         for (int i=0; i < bridge_row->n_mstp_instances; i++) {
             if(inst_id == bridge_row->key_mstp_instances[i]) {
@@ -875,23 +897,6 @@ cli_show_mst(int inst_id, bool detail_flag) {
         mstp_show_instance_info(cist_row, inst_id, mstp_row);
     }
 
-    /* Display MST instance data for all instance including CIST*/
-    else {
-        /* Display common instance data */
-        mstp_show_common_instance_info(cist_row);
-
-        /* Loop for all instance in bridge table */
-        for (int i=0; i < bridge_row->n_mstp_instances; i++) {
-            mstp_row = bridge_row->value_mstp_instances[i];
-            if (!mstp_row) {
-                assert(0);
-                return e_vtysh_error;
-            }
-            vty_out(vty, "%s", VTY_NEWLINE);
-            mstp_show_instance_info(cist_row, bridge_row->key_mstp_instances[i], mstp_row);
-        }
-    }
-
     /* Display common instance ports data */
     if(detail_flag) {
         OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
@@ -907,7 +912,7 @@ cli_show_mst(int inst_id, bool detail_flag) {
 }
 
 /*-----------------------------------------------------------------------------
- | Function:        cli_show_mst
+ | Function:        cli_show_mstp_global_config
  | Responsibility:  Displays running-config for MSTP module(config-level)
  | Parameters:
  | Return:
@@ -1033,7 +1038,7 @@ cli_show_mstp_global_config() {
 }
 
 /*-----------------------------------------------------------------------------
- | Function:        cli_show_mst
+ | Function:        cli_show_mstp_intf_config
  | Responsibility:  Displays running-config for MSTP module(Port-level)
  | Parameters:
  | Return:
@@ -1210,7 +1215,7 @@ cli_show_mstp_intf_config() {
 }
 
 /*-----------------------------------------------------------------------------
- | Function:        cli_show_mst
+ | Function:        cli_show_mstp_running_config
  | Responsibility:  Displays running-config for MSTP module
  | Parameters:
  | Return:
@@ -2642,7 +2647,7 @@ DEFUN(show_spanning_mst,
 
 DEFUN(show_spanning_mst_inst,
       show_spanning_mst_inst_cmd,
-      "show spanning-tree mst <1-64> {detail}",
+      "show spanning-tree mst <0-64> {detail}",
       SHOW_STR
       SPAN_TREE
       MST_INST
@@ -2710,6 +2715,7 @@ cli_pre_init() {
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_topology_change_count);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_vlans);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_root_priority);
+    ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_col_remaining_hops);
 
     /* mstp instance port table */
     ovsdb_idl_add_column(idl, &ovsrec_mstp_instance_port_col_designated_bridge);
