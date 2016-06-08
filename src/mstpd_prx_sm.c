@@ -33,6 +33,7 @@
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
 #include <assert.h>
+#include <eventlog.h>
 
 #include "mstp_fsm.h"
 #include "mstp_recv.h"
@@ -381,6 +382,10 @@ mstp_prxSmReceiveAct(MSTP_RX_PDU *pkt, LPORT_t lport)
       cistPortPtr->loopInconsistent = FALSE;
 
       VLOG_DBG("port %s moved out of inconsistent state for %s",portName,"CIST");
+      log_event("MSTP_OUT_INCONSISTENT",
+          EV_KV("port", "%s", portName),
+          EV_KV("proto", "%s", "CIST"));
+
    }
 
    /*------------------------------------------------------------------------
@@ -468,6 +473,9 @@ mstp_prxSmReceiveAct(MSTP_RX_PDU *pkt, LPORT_t lport)
                mstiPortPtr->loopInconsistent = FALSE;
 
                VLOG_DBG("port %s moved out of inconsistent state for %s",portName,mstiName);
+               log_event("MSTP_OUT_INCONSISTENT",
+                   EV_KV("port", "%s", portName),
+                   EV_KV("proto", "%s", mstiName));
             }
 
             /*---------------------------------------------------------------

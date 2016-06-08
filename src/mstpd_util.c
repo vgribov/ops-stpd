@@ -33,6 +33,7 @@
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
 #include <assert.h>
+#include <eventlog.h>
 
 #include "mstp_ovsdb_if.h"
 #include "mstp_inlines.h"
@@ -3946,6 +3947,10 @@ mstp_setTcFlags(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport)
             mstpUpdateTcHistory(mstid, lport, FALSE);
             intf_get_port_name(lport, portName);
             VLOG_DBG("Topology Change received on port %s for %s from Source MAC %02x%02x%02x-%02x%02x%02x",portName,"CIST",PRINT_MAC_ADDR(commPortPtr->bpduSrcMac));
+            log_event("MSTP_TC_RECV",
+                EV_KV("port", "%s", portName),
+                EV_KV("proto", "%s", "CIST"),
+                EV_KV("mac", "%02x:%02x:%02x:%02x:%02x:%02x", PRINT_MAC_ADDR(commPortPtr->bpduSrcMac)));
          }
       }
       else if(bpdu->cistFlags & MSTP_CIST_FLAG_TC)
@@ -3965,6 +3970,11 @@ mstp_setTcFlags(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport)
          mstpUpdateTcHistory(mstid, lport, FALSE);
          intf_get_port_name(lport, portName);
          VLOG_DBG("Topology Change received on port %s for %s from Source MAC %02x%02x%02x-%02x%02x%02x",portName,"CIST",PRINT_MAC_ADDR(commPortPtr->bpduSrcMac));
+         log_event("MSTP_TC_RECV",
+             EV_KV("port", "%s", portName),
+             EV_KV("proto", "%s", "CIST"),
+             EV_KV("mac", "%02x:%02x:%02x:%02x:%02x:%02x", PRINT_MAC_ADDR(commPortPtr->bpduSrcMac)));
+
          /*------------------------------------------------------------------
           * set 'rcvdTc' TRUE for each and every MSTI and update
           * received TC flags statistics counter
@@ -3984,6 +3994,11 @@ mstp_setTcFlags(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport)
                intf_get_port_name(lport, portName);
                snprintf(mst_str, sizeof(mst_str), "MSTI %d", tmpId);
                VLOG_DBG("Topology Change received on port %s for %s from Source MAC %02x%02x%02x-%02x%02x%02x",portName,mst_str,PRINT_MAC_ADDR(commPortPtr->bpduSrcMac));
+               log_event("MSTP_TC_RECV",
+                   EV_KV("port", "%s", portName),
+                   EV_KV("proto", "%s", mst_str),
+                   EV_KV("mac", "%02x:%02x:%02x:%02x:%02x:%02x", PRINT_MAC_ADDR(commPortPtr->bpduSrcMac)));
+
                /*------------------------------------------------------------
                 * kick Topology Change state machine (per-Tree per-Port)
                 *------------------------------------------------------------*/
@@ -4020,6 +4035,11 @@ mstp_setTcFlags(MSTP_RX_PDU *pkt, MSTID_t mstid, LPORT_t lport)
          intf_get_port_name(lport, portName);
          snprintf(mst_str, sizeof(mst_str), "MSTI %d", mstid);
          VLOG_DBG("Topology Change received on port %s for %s from Source MAC %02x%02x%02x-%02x%02x%02x",portName,mst_str,PRINT_MAC_ADDR(commPortPtr->bpduSrcMac));
+         log_event("MSTP_TC_RECV",
+             EV_KV("port", "%s", portName),
+             EV_KV("proto", "%s", mst_str),
+             EV_KV("mac", "%02x:%02x:%02x:%02x:%02x:%02x", PRINT_MAC_ADDR(commPortPtr->bpduSrcMac)));
+
       }
    }
 }
@@ -5399,6 +5419,10 @@ mstp_updtRolesCist(void)
                "CIST",
                oldRootPortName,
                newRootPortName);
+         log_event("MSTP_NEW_ROOT_PORT",
+              EV_KV("proto", "CIST"),
+              EV_KV("old_port","%s", oldRootPortName),
+              EV_KV("new_port","%s", newRootPortName));
 
       }
    }
@@ -5941,6 +5965,10 @@ mstp_updtRolesMsti(MSTID_t mstid)
                msti_str,
                oldRootPortName,
                newRootPortName);
+         log_event("MSTP_NEW_ROOT_PORT",
+               EV_KV("proto", "%s", msti_str),
+               EV_KV("old_port", "%s", oldRootPortName),
+               EV_KV("new_port", "%s", newRootPortName));
       }
    }
 
@@ -6928,6 +6956,13 @@ mstp_logNewRootId(MSTP_BRIDGE_IDENTIFIER_t oldRootId,
                          MSTP_GET_BRIDGE_PRIORITY(newRootId),
                          PRINT_MAC_ADDR(newRootId.mac_address));
    }
+
+   log_event("MSTP_NEW_ROOT",
+       EV_KV("proto", "%s", mstType),
+       EV_KV("old_priority", "%d", MSTP_GET_BRIDGE_PRIORITY(oldRootId)),
+       EV_KV("old_mac", "%02x:%02x:%02x:%02x:%02x:%02x", PRINT_MAC_ADDR(oldRootId.mac_address)),
+       EV_KV("new_priority", "%d", MSTP_GET_BRIDGE_PRIORITY(newRootId)),
+       EV_KV("new_mac", "%02x:%02x:%02x:%02x:%02x:%02x", PRINT_MAC_ADDR(newRootId.mac_address)));
 
    /*send a trap*/
    //getVlanMacaddr(DEFAULT_VLAN_NUMBER, vlanMac); /*To be rewritten*/
@@ -10424,15 +10459,14 @@ mstp_updatePortHistory(MSTID_t mstid, LPORT_t lport,
       cistPortPtr->portHistory[idx].valid = TRUE;
       if(MSTP_CIST_PORT_STATE_CHANGE)
       {
-#ifdef OPS_MSTP_TODO
          if(((cistPortPtr->portHistory[idx].oldState ==
-              MSTP_PORT_ROLE_ALTERNATE) ||
+              (int)MSTP_PORT_ROLE_ALTERNATE) ||
              (cistPortPtr->portHistory[idx].oldState ==
-              MSTP_PORT_ROLE_BACKUP)) &&
+              (int)MSTP_PORT_ROLE_BACKUP)) &&
             ((cistPortPtr->portHistory[idx].newState ==
-              MSTP_PORT_ROLE_ROOT) ||
+              (int)MSTP_PORT_ROLE_ROOT) ||
              (cistPortPtr->portHistory[idx].newState ==
-              MSTP_PORT_ROLE_DESIGNATED)))
+              (int)MSTP_PORT_ROLE_DESIGNATED)))
          {
             char portName[PORTNAME_LEN];
 
@@ -10440,16 +10474,18 @@ mstp_updatePortHistory(MSTID_t mstid, LPORT_t lport,
 
             VLOG_DBG("Port %s unblocked on CST",
                       portName);
+            log_event("MSTP_CIST_PORT_UNBLOCK",
+                EV_KV("port", "%s", portName));
          }
          else
             if(((cistPortPtr->portHistory[idx].newState ==
-                 MSTP_PORT_ROLE_ALTERNATE) ||
+                 (int)MSTP_PORT_ROLE_ALTERNATE) ||
                 (cistPortPtr->portHistory[idx].newState ==
-                 MSTP_PORT_ROLE_BACKUP)) &&
+                 (int)MSTP_PORT_ROLE_BACKUP)) &&
                ((cistPortPtr->portHistory[idx].oldState ==
-                 MSTP_PORT_ROLE_ROOT) ||
+                 (int)MSTP_PORT_ROLE_ROOT) ||
                 (cistPortPtr->portHistory[idx].oldState ==
-                 MSTP_PORT_ROLE_DESIGNATED)))
+                 (int)MSTP_PORT_ROLE_DESIGNATED)))
             {
                char portName[PORTNAME_LEN];
 
@@ -10457,8 +10493,9 @@ mstp_updatePortHistory(MSTID_t mstid, LPORT_t lport,
 
                VLOG_DBG("Port %s blocked on CST",
                         portName);
+               log_event("MSTP_CIST_PORT_BLOCK",
+                   EV_KV("port", "%s", portName));
             }
-#endif /*OPS_MSTP_TODO*/
       }
    }
    else
@@ -10497,15 +10534,14 @@ mstp_updatePortHistory(MSTID_t mstid, LPORT_t lport,
 
       if(MSTP_MSTI_PORT_STATE_CHANGE(mstid))
       {
-#ifdef OPS_MSTP_TODO
          if(((mstiPortPtr->portHistory[idx].oldState ==
-              MSTP_PORT_ROLE_ALTERNATE) ||
+              (int)MSTP_PORT_ROLE_ALTERNATE) ||
              (mstiPortPtr->portHistory[idx].oldState ==
-              MSTP_PORT_ROLE_BACKUP)) &&
+              (int)MSTP_PORT_ROLE_BACKUP)) &&
             ((mstiPortPtr->portHistory[idx].newState ==
-              MSTP_PORT_ROLE_ROOT) ||
+              (int)MSTP_PORT_ROLE_ROOT) ||
              (mstiPortPtr->portHistory[idx].newState ==
-              MSTP_PORT_ROLE_DESIGNATED)))
+              (int)MSTP_PORT_ROLE_DESIGNATED)))
          {
             char portName[PORTNAME_LEN];
 
@@ -10513,16 +10549,19 @@ mstp_updatePortHistory(MSTID_t mstid, LPORT_t lport,
 
             VLOG_DBG("Port %s unblocked on MSTI%d",
                      portName, mstid);
+            log_event("MSTP_MSTI_PORT_UNBLOCK",
+                EV_KV("port", "%s", portName),
+                EV_KV("instance", "%d", mstid));
          }
          else
             if(((mstiPortPtr->portHistory[idx].newState ==
-                 MSTP_PORT_ROLE_ALTERNATE) ||
+                 (int)MSTP_PORT_ROLE_ALTERNATE) ||
                 (mstiPortPtr->portHistory[idx].newState ==
-                 MSTP_PORT_ROLE_BACKUP)) &&
+                 (int)MSTP_PORT_ROLE_BACKUP)) &&
                ((mstiPortPtr->portHistory[idx].oldState ==
-                 MSTP_PORT_ROLE_ROOT) ||
+                 (int)MSTP_PORT_ROLE_ROOT) ||
                 (mstiPortPtr->portHistory[idx].oldState ==
-                 MSTP_PORT_ROLE_DESIGNATED)))
+                 (int)MSTP_PORT_ROLE_DESIGNATED)))
             {
                char portName[PORTNAME_LEN];
 
@@ -10530,8 +10569,12 @@ mstp_updatePortHistory(MSTID_t mstid, LPORT_t lport,
                VLOG_DBG("Port %s blocked on MSTI%d",
                      portName, mstid);
 
+               log_event("MSTP_MSTI_PORT_BLOCK",
+                   EV_KV("port", "%s", portName),
+                   EV_KV("instance", "%d", mstid));
+
+
             }
-#endif /*OPS_MSTP_TODO*/
       }
    }
 }
@@ -10760,12 +10803,21 @@ mstpCheckForTcGeneration(MSTID_t mstid,
       {
         VLOG_DBG("%s - Topology Change generated on port %s going in to %s",
                     "CIST",portName,"forwarding");
+        log_event("MSTP_TC_ORIGINATED",
+            EV_KV("proto", "%s", "CIST"),
+            EV_KV("port", "%s", portName),
+            EV_KV("state", "%s", "forwarding"));
       }
       else
       {
          snprintf(mst_str, sizeof(mst_str), "MSTI %d", mstid);
-        VLOG_DBG("%s - Topology Change generated on port %s going in to %s",
+         VLOG_DBG("%s - Topology Change generated on port %s going in to %s",
                     mst_str,portName,"forwarding");
+         log_event("MSTP_TC_ORIGINATED",
+             EV_KV("proto", "%s", mst_str),
+             EV_KV("port", "%s", portName),
+             EV_KV("state", "%s", "forwarding"));
+
       }
       return TRUE;
    }
@@ -10785,12 +10837,20 @@ mstpCheckForTcGeneration(MSTID_t mstid,
       {
         VLOG_DBG("%s - Topology Change generated on port %s going in to %s",
                     "CIST",portName,"blocking");
+        log_event("MSTP_TC_ORIGINATED",
+            EV_KV("proto", "%s", "CIST"),
+            EV_KV("port", "%s", portName),
+            EV_KV("state", "%s", "blocking"));
       }
       else
       {
          snprintf(mst_str, sizeof(mst_str), "MSTI %d", mstid);
-        VLOG_DBG("%s - Topology Change generated on port %s going in to %s",
+         VLOG_DBG("%s - Topology Change generated on port %s going in to %s",
                     mst_str,portName,"blocking");
+         log_event("MSTP_TC_ORIGINATED",
+             EV_KV("proto", "%s", mst_str),
+             EV_KV("port", "%s", portName),
+             EV_KV("state", "%s", "blocking"));
       }
       return TRUE;
    }

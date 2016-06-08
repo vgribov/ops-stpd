@@ -52,7 +52,7 @@ set (SOURCES ${SRC_DIR}/mstpd.c ${SRC_DIR}/mstpd_ovsdb_if.c
 add_executable (${OPSSTPD} ${SOURCES})
 
 target_link_libraries (${OPSSTPD} ${OVSCOMMON_LIBRARIES} ${OVSDB_LIBRARIES}
-                   -lpthread -lrt)
+                   -lpthread -lrt -lsupportability)
 
 add_subdirectory(src/cli)
 

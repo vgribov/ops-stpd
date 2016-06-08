@@ -45,6 +45,7 @@
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
 #include <diag_dump.h>
+#include <eventlog.h>
 
 #include "mstp.h"
 #include "mstp_ovsdb_if.h"
@@ -157,6 +158,7 @@ static void
 mstpd_init(const char *db_path, struct unixctl_server *appctl)
 {
     int rc;
+    int retval;
     sigset_t sigset;
     pthread_t ovs_if_thread;
     pthread_t mstpd_thread;
@@ -194,6 +196,11 @@ mstpd_init(const char *db_path, struct unixctl_server *appctl)
     unixctl_command_register("mstpd/daemon/intf_to_mstp_map", "", 0, 1, mstpd_daemon_intf_to_mstp_map_unixctl_list, NULL);
 
     INIT_DIAG_DUMP_BASIC(mstpd_diag_dump_basic_cb);
+
+    retval = event_log_init("MSTP");
+        if(retval < 0) {
+            VLOG_ERR("Event log initialization failed");
+    }
 
     /* Spawn off the OVSDB interface thread. */
     rc = pthread_create(&ovs_if_thread,

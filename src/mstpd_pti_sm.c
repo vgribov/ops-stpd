@@ -33,6 +33,7 @@
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
 #include <assert.h>
+#include <eventlog.h>
 
 #include "mstp_fsm.h"
 #include "mstp_inlines.h"
@@ -451,12 +452,20 @@ mstp_ptiSmTickAct(LPORT_t lport)
                      MSTP_GET_BRIDGE_PRIORITY(dsnBridgeId),
                      PRINT_MAC_ADDR(dsnBridgeId.mac_address));
             VLOG_DBG("%s starved for %s on port %s from %s","CIST","a BPDU Rx",portName,dsnBridgeName);
+            log_event("MSTP_RX_STARVATION",
+                EV_KV("prroto", "%s",  "CIST"),
+                EV_KV("pkt_type", "%s", "a BPDU Rx"),
+                EV_KV("port", "%s", portName),
+                EV_KV("priority_mac", "%s", dsnBridgeName));
             if(loopGuardEnabled)
             {
                cistPortPtr->loopInconsistent = TRUE;
 
                VLOG_DBG("bpdu loss- port %s moved to inconsistent state for %s", portName,
                      "CIST");
+               log_event("MSTP_TO_INCONSISTENT",
+                   EV_KV("port", "%s", portName),
+                   EV_KV("proto", "%s", "CIST"));
 #if OPS_MSTP_TODO
                /*send a trap*/
                mstp_sendLoopGuardInconsistencyTrap(MSTP_CISTID,lport);
@@ -570,12 +579,22 @@ mstp_ptiSmTickAct(LPORT_t lport)
                      VLOG_DBG("%s starved for %s on port %s from %s",
                            mstiName, "an MSTI Msg Rx", portName,
                            dsnBridgeName);
+                     log_event("MSTP_RX_STARVATION",
+                         EV_KV("prroto", "%s",    mstiName),
+                         EV_KV("pkt_type", "%s", "an MSTI Msg Rx"),
+                         EV_KV("port", "%s", portName),
+                         EV_KV("priority_mac", "%s", dsnBridgeName));
+
                      if(loopGuardEnabled)
                      {
                         mstiPortPtr->loopInconsistent = TRUE;
 
                         VLOG_DBG("bpdu loss- port %s moved to inconsistent state for %s",
                               portName, mstiName);
+                        log_event("MSTP_TO_INCONSISTENT",
+                            EV_KV("port", "%s", portName),
+                            EV_KV("proto", "%s", mstiName));
+
 #ifdef OPS_MSTP_TODO
                         /*send a trap*/
                         mstp_sendLoopGuardInconsistencyTrap(mstid, lport);

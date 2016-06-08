@@ -647,8 +647,13 @@ bool isMstp64Instance(void);
 #define MSTP_DEBUG
 #endif
 
+#ifndef TRUE
 #define TRUE true
+#endif
+
+#ifndef FALSE
 #define FALSE false
+#endif
 
 #define STP_PATH_COST_ETHERNET   100
 #define STP_PATH_COST_100MB      10

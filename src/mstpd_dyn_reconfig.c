@@ -33,6 +33,7 @@
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
 #include <assert.h>
+#include <eventlog.h>
 
 #include "mstp_fsm.h"
 #include "mstp_recv.h"
@@ -310,6 +311,7 @@ mstp_adminStatusUpdate(int status)
        * log VLOG message
        *---------------------------------------------------------------------*/
       MSTP_PRINTF_EVENT("Spanning Tree Protocol enabled");
+      log_event("MSTP_ENABLED", NULL);
    }
    else
    if((Spanning == TRUE) && (status == FALSE))
@@ -345,6 +347,7 @@ mstp_adminStatusUpdate(int status)
        *---------------------------------------------------------------------*/
 
       MSTP_PRINTF_EVENT("Spanning Tree Protocol disabled");
+      log_event("MSTP_DISABLED", NULL);
    }
 }
 /**PROC+**********************************************************************
