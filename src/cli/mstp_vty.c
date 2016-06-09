@@ -330,9 +330,9 @@ cli_show_spanning_tree_config(bool detail) {
         vty_out(vty, "  %34s%s", "This bridge is the root", VTY_NEWLINE);
     }
     vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
-            "Hello time(in seconds):", *cist_row->hello_time,
-            "Max Age(in seconds):", *cist_row->max_age,
-            "Forward Delay(in seconds):", *cist_row->forward_delay,
+            "Hello time(in seconds):", *cist_row->oper_hello_time,
+            "Max Age(in seconds):", *cist_row->oper_max_age,
+            "Forward Delay(in seconds):", *cist_row->oper_forward_delay,
             VTY_NEWLINE);
 
     vty_out(vty, "%s  %-10s %-10s: %-20ld%s", VTY_NEWLINE, "Bridge ID",
