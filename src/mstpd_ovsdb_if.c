@@ -2579,7 +2579,16 @@ util_add_default_ports_to_mist() {
 
         txn = ovsdb_idl_txn_create(idl);
 
-        mstp_port_info = xmalloc(sizeof *mstp_row->mstp_instance_ports * bridge_row->n_ports-1);
+        /* Get the valid l2 port count*/
+        msti_port_count = mstp_util_get_valid_l2_ports(bridge_row);
+        if(msti_port_count == 0) {
+            VLOG_INFO("No valid L2 port found%s:%d", __FILE__, __LINE__);
+            ovsdb_idl_txn_commit_block(txn);
+            ovsdb_idl_txn_destroy(txn);
+            return;
+        }
+
+        mstp_port_info = xmalloc(sizeof *mstp_row->mstp_instance_ports * msti_port_count);
         if (!mstp_port_info)
         {
             VLOG_ERR("Failed to allocate memory for MSTI Port Info");
@@ -2587,7 +2596,6 @@ util_add_default_ports_to_mist() {
             ovsdb_idl_txn_destroy(txn);
             return;
         }
-
 
         for (j=0,i=0; i<bridge_row->n_ports; i++) {
             if (!bridge_row->ports[i]) {
@@ -2627,7 +2635,6 @@ util_add_default_ports_to_mist() {
                 ovsdb_idl_txn_destroy(txn);
                 return;
             }
-            msti_port_count++;
 
 
             /* FILL the default values for CIST_port entry */
@@ -2690,7 +2697,6 @@ util_add_default_ports_to_cist() {
     bool bpdu_filter_disable = false;
     uint64_t cist_port_count = 0;
 
-
     txn = ovsdb_idl_txn_create(idl);
 
     bridge_row = ovsrec_bridge_first(idl);
@@ -2709,8 +2715,17 @@ util_add_default_ports_to_cist() {
         return;
     }
 
+    /* Get the valid l2 port count*/
+    cist_port_count = mstp_util_get_valid_l2_ports(bridge_row);
+    if(cist_port_count == 0) {
+        VLOG_INFO("No valid L2 port found%s:%d", __FILE__, __LINE__);
+        ovsdb_idl_txn_commit_block(txn);
+        ovsdb_idl_txn_destroy(txn);
+        return;
+    }
+
     /* Add CIST port entry for all ports to the CIST table */
-    cist_port_info = xmalloc(sizeof *cist_row->mstp_common_instance_ports * bridge_row->n_ports-1);
+    cist_port_info = xmalloc(sizeof *cist_row->mstp_common_instance_ports * cist_port_count);
     if (!cist_port_info)
     {
         VLOG_ERR("Failed to allocate memory for Cist Port Info");
@@ -2756,7 +2771,6 @@ util_add_default_ports_to_cist() {
             ovsdb_idl_txn_destroy(txn);
             return;
         }
-        cist_port_count++;
 
         /* FILL the default values for CIST_port entry */
         ovsrec_mstp_common_instance_port_set_port( cist_port_row,

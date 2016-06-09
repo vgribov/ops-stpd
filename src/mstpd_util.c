@@ -11354,3 +11354,29 @@ bool intf_get_lport_speed_duplex(LPORT_t lport, SPEED_DPLX *sd)
     }
     return(FALSE);
 }
+int mstp_util_get_valid_l2_ports(const struct ovsrec_bridge *bridge_row) {
+    int i = 0, port_count = 0;
+
+    if (!bridge_row){
+        VLOG_INFO("Invalid Input %s:%d", __FILE__, __LINE__);
+        STP_ASSERT(0);
+        return port_count;
+    }
+
+    for (i = 0; i < bridge_row->n_ports; i++) {
+        if (!bridge_row->ports[i]){
+            continue;
+        }
+
+        if (strcmp(bridge_row->ports[i]->name,"bridge_normal") == 0) {
+            continue;
+        }
+
+        if (!mstpd_is_valid_port_row(bridge_row->ports[i])){
+            /* port row not interested by mstp */
+            continue;
+        }
+        port_count++;
+    }
+    return port_count;
+}

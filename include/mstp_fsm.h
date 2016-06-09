@@ -3433,6 +3433,7 @@ bool mstpValidTcHistory(bool originated, MSTID_t mstid,
                         uint8_t  idx);
 void intf_get_port_name(LPORT_t lport, char *port_name);
 bool intf_get_lport_speed_duplex(LPORT_t lport, SPEED_DPLX *sd);
+int mstp_util_get_valid_l2_ports(const struct ovsrec_bridge *bridge_row);
 
 void mstp_protocolData(MSTP_RX_PDU *msg);
 void mstp_errantProtocolData(MSTP_RX_PDU *msg, TRAP_SOURCE_TYPE_e source);
