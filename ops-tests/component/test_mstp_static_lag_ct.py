@@ -146,32 +146,49 @@ def validate_turn_off_interfaces(sw, interfaces):
             "Interface state for " + intf + "is up"
 
 
-def validate_local_key(map_lacp, lag_id):
-    assert map_lacp['local_key'] == lag_id,\
-        "Actor Key is not the same as the LAG ID"
-
-
-def validate_remote_key(map_lacp, lag_id):
-    assert map_lacp['remote_key'] == lag_id,\
-        "Partner Key is not the same as the LAG ID"
-
-
-def validate_lag_name(map_lacp, lag_id):
-    assert map_lacp['lag_id'] == lag_id,\
-        "LAG ID should be " + lag_id
-
-
-def validate_lag_state_sync(map_lacp, state, lacp_mode='active'):
-    assert map_lacp[state][lacp_mode] is True,\
-        "LAG state should be {}".format(lacp_mode)
-    assert map_lacp[state]['aggregable'] is True,\
-        "LAG state should have aggregable enabled"
-    assert map_lacp[state]['in_sync'] is True,\
-        "LAG state should be In Sync"
-    assert map_lacp[state]['collecting'] is True,\
-        "LAG state should be in collecting"
-    assert map_lacp[state]['distributing'] is True,\
-        "LAG state should be in distributing"
+def verify_lag_config(
+    sw,
+    lag_id,
+    interfaces,
+    heartbeat_rate='slow',
+    fallback=False,
+    hashing='l3-src-dst',
+    mode='off'
+):
+    lag_name = 'lag{lag_id}'.format(**locals())
+    lag_config = sw.libs.vtysh.show_lacp_aggregates(lag=lag_name)
+    assert len(interfaces) == len(lag_config[lag_name]['interfaces']),\
+        ' '.join(
+        [
+            "{} interfaces in LAG is different".format(
+                len(lag_config[lag_name]['interfaces'])
+            ),
+            "than the expected number of {}".format(len(interfaces))
+        ]
+    )
+    for interface in interfaces:
+        assert interface in lag_config[lag_name]['interfaces'],\
+            "Interface {} is not in LAG".format(interface)
+    assert heartbeat_rate == lag_config[lag_name]['heartbeat_rate'],\
+        "Heartbeat rate {} is not expected. Expected {}".format(
+            lag_config[lag_name]['heartbeat_rate'],
+            heartbeat_rate
+    )
+    assert fallback == lag_config[lag_name]['fallback'],\
+        "Fallback setting of {} is not expected. Expected {}".format(
+        lag_config[lag_name]['fallback'],
+        fallback
+    )
+    assert hashing == lag_config[lag_name]['hash'],\
+        "Hash setting of {} is not expected. Expected {}".format(
+        lag_config[lag_name]['hash'],
+        hashing
+    )
+    assert mode == lag_config[lag_name]['mode'],\
+        "LAG mode setting of {} is not expected. Expected {}".format(
+        lag_config[lag_name]['mode'],
+        mode
+    )
 
 
 def lag_shutdown(sw, lag_id):
@@ -231,7 +248,7 @@ def ops_check_root_bridge_active_ports(interface, ops_show):
         "Port state has not updated correctly"
 
 
-def test_cist_single_region_root_elect_with_lag(topology):
+def test_cist_single_region_root_elect_with_staticlag(topology):
     """
     Test that a cist in single region is functional with a OpenSwitch switch.
 
@@ -274,13 +291,13 @@ def test_cist_single_region_root_elect_with_lag(topology):
     validate_turn_on_interfaces(sw1, ports_sw1)
     validate_turn_on_interfaces(sw2, ports_sw2)
 
-    print("craete l2 lag in both switches")
+    print("create l2 lag in both switches")
     lag_no_routing(sw1, sw1_lag_id)
     lag_no_routing(sw2, sw1_lag_id)
 
     print("Create LAG in both switches")
-    create_lag(sw1, sw1_lag_id, 'active')
-    create_lag(sw2, sw2_lag_id, 'active')
+    create_lag(sw1, sw1_lag_id, 'off')
+    create_lag(sw2, sw2_lag_id, 'off')
 
     print("Associate interfaces [1, 2] to LAG in both switches")
     associate_interface_to_lag(sw1, p11, sw1_lag_id)
@@ -292,25 +309,12 @@ def test_cist_single_region_root_elect_with_lag(topology):
     lag_no_shutdown(sw1, sw1_lag_id)
     lag_no_shutdown(sw2, sw2_lag_id)
 
+    print("Verify LAG configuration")
+    verify_lag_config(sw1, sw1_lag_id, ports_sw1[0:2])
+    verify_lag_config(sw2, sw2_lag_id, ports_sw2[0:2])
+
     print("Waiting for LAG negotations between switches")
-    sleep(100)
-
-    print("Get information for LAG in interface 2 with both switches")
-    map_lacp_sw1 = sw1.libs.vtysh.show_lacp_interface(p12)
-    map_lacp_sw2 = sw2.libs.vtysh.show_lacp_interface(p22)
-
-    print("Validate the LAG was created in both switches")
-    validate_lag_name(map_lacp_sw1, sw1_lag_id)
-    validate_local_key(map_lacp_sw1, sw1_lag_id)
-    validate_remote_key(map_lacp_sw1, sw2_lag_id)
-    validate_lag_state_sync(map_lacp_sw1, LOCAL_STATE)
-    validate_lag_state_sync(map_lacp_sw1, REMOTE_STATE)
-
-    validate_lag_name(map_lacp_sw2, sw2_lag_id)
-    validate_local_key(map_lacp_sw2, sw2_lag_id)
-    validate_remote_key(map_lacp_sw2, sw1_lag_id)
-    validate_lag_state_sync(map_lacp_sw2, LOCAL_STATE)
-    validate_lag_state_sync(map_lacp_sw2, REMOTE_STATE)
+    sleep(60)
 
     for sw in [sw1, sw2]:
         config_mstp_region(sw, REGION_1, VERSION)
