@@ -137,6 +137,7 @@
 #define ENET_HDR_SIZ      14
 #define ENET_CRC_LEN       4
 #define ETHERMIN (ENET_MIN_PKT_SIZE - ENET_HDR_SIZ - ENET_CRC_LEN)  /* 46 */
+#define MSTP_MAC_STR_LEN 18
 
 #define PRINT_MAC_ADDR(a)       \
         *((u_char *)(a)),   *((u_char *)(a)+1), *((u_char *)(a)+2), \

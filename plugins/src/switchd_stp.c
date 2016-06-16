@@ -297,7 +297,7 @@ mstp_cist_and_instance_port_interface_lookup(
 
     HMAP_FOR_EACH_WITH_HASH (pintf, hmap_node, hash_string(name, 0),
                              &mstp_port->interfaces) {
-        if (!strcmp(pintf->name, name)) {
+        if (pintf && !strcmp(pintf->name, name)) {
             return pintf;
         }
     }
@@ -916,15 +916,15 @@ mstp_instance_delete(const struct stp_blk_params* br,
         hmap_remove(&all_mstp_instances, &msti->node);
         hmap_destroy(&msti->vlans);
         hmap_destroy(&msti->ports);
-        free(msti);
-
         VLOG_DBG("%s: delete stg %d", __FUNCTION__, msti->hw_stg_id);
+
         p_asic_interface = get_asic_plugin_interface();
         if (!p_asic_interface) {
             VLOG_ERR("%s: unable to find asic plugin interface",__FUNCTION__);
             return;
         }
         p_asic_interface->delete_stg(msti->hw_stg_id);
+        free(msti);
     }
 
 }

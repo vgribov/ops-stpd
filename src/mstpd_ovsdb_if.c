@@ -147,6 +147,66 @@ struct mstp_cist_port_config *cist_port_lookup[MAX_ENTRIES_IN_POOL+1];
 struct mstp_msti_config *msti_lookup[MSTP_INSTANCES_MAX+1];
 struct mstp_msti_port_config *msti_port_lookup[MSTP_INSTANCES_MAX+1][MAX_ENTRIES_IN_POOL+1];
 
+static cist_table_value cist_value[] = { {ROOT_PATH_COST, ovsrec_mstp_common_instance_set_root_path_cost},
+                                         {ROOT_PRIORITY, ovsrec_mstp_common_instance_set_root_priority},
+                                         {CIST_PATH_POST, ovsrec_mstp_common_instance_set_cist_path_cost},
+                                         {REMAINING_HOPS, ovsrec_mstp_common_instance_set_remaining_hops},
+                                         {OPER_HELLO_TIME, ovsrec_mstp_common_instance_set_oper_hello_time},
+                                         {OPER_FORWARD_DELAY, ovsrec_mstp_common_instance_set_oper_forward_delay},
+                                         {OPER_MAX_AGE, ovsrec_mstp_common_instance_set_oper_max_age},
+                                         {HELLO_EXPIRY_TIME, ovsrec_mstp_common_instance_set_hello_expiry_time},
+                                         {FORWARD_DELAY_EXP_TIME, ovsrec_mstp_common_instance_set_forward_delay_expiry_time},
+                                         {TIME_SINCE_TOP_CHANGE, ovsrec_mstp_common_instance_set_time_since_top_change},
+                                         {OPER_TX_HOLD_COUNT, ovsrec_mstp_common_instance_set_oper_tx_hold_count},
+                                         {TOP_CHANGE_CNT, ovsrec_mstp_common_instance_set_topology_change_count}
+                                        };
+
+static cist_table_string cist_string[] = { {DESIGNATED_ROOT, ovsrec_mstp_common_instance_set_designated_root},
+                                           {REGIONAL_ROOT, ovsrec_mstp_common_instance_set_regional_root},
+                                           {ROOT_PORT, ovsrec_mstp_common_instance_set_root_port}
+                                         };
+
+static cist_port_table_value cist_port_value[] = { {CIST_PATH_COST, ovsrec_mstp_common_instance_port_set_cist_path_cost},
+                                                   {PORT_PATH_COST, ovsrec_mstp_common_instance_port_set_port_path_cost},
+                                                   {DESIGNATED_PATH_COST, ovsrec_mstp_common_instance_port_set_designated_path_cost},
+                                                   {PORT_HELLO_TIME, ovsrec_mstp_common_instance_port_set_port_hello_time}
+                                                 };
+
+
+static cist_port_table_string cist_port_string[] = { {PORT_ROLE, ovsrec_mstp_common_instance_port_set_port_role},
+                                               {PORT_STATE, ovsrec_mstp_common_instance_port_set_port_state},
+                                               {LINK_TYPE, ovsrec_mstp_common_instance_port_set_link_type},
+                                               {DESIGNATED_PORT, ovsrec_mstp_common_instance_port_set_designated_port},
+                                               {DESIGNATED_ROOT, ovsrec_mstp_common_instance_port_set_designated_root},
+                                               {CIST_REGIONAL_ROOT_ID, ovsrec_mstp_common_instance_port_set_cist_regional_root_id},
+                                               {DESIGNATED_BRIDGE, ovsrec_mstp_common_instance_port_set_designated_bridge}
+                                             };
+
+static msti_table_string msti_string[] = { {DESIGNATED_ROOT, ovsrec_mstp_instance_set_designated_root},
+                                           {ROOT_PORT, ovsrec_mstp_instance_set_root_port},
+                                           {BRIDGE_IDENTIFIER, ovsrec_mstp_instance_set_bridge_identifier},
+                                         };
+
+static msti_table_value msti_value[] = { {ROOT_PATH_COST, ovsrec_mstp_instance_set_root_path_cost},
+                                         {ROOT_PRIORITY, ovsrec_mstp_instance_set_root_priority},
+                                         {TIME_SINCE_TOP_CHANGE, ovsrec_mstp_instance_set_time_since_top_change},
+                                         {TOP_CHANGE_CNT, ovsrec_mstp_instance_set_topology_change_count},
+                                         {REMAINING_HOPS, ovsrec_mstp_instance_set_remaining_hops}
+                                       };
+
+static msti_port_table_value msti_port_value[] = { {DESIGNATED_ROOT_PRIORITY, ovsrec_mstp_instance_port_set_designated_root_priority},
+                                                   {DESIGNATED_COST, ovsrec_mstp_instance_port_set_designated_cost},
+                                                   {DESIGNATED_BRIDGE_PRIORITY, ovsrec_mstp_instance_port_set_designated_bridge_priority}
+                                                 };
+
+static msti_port_table_string msti_port_string[] = { {PORT_ROLE, ovsrec_mstp_instance_port_set_port_role},
+                                               {PORT_STATE, ovsrec_mstp_instance_port_set_port_state},
+                                               {DESIGNATED_ROOT, ovsrec_mstp_instance_port_set_designated_root},
+                                               {DESIGNATED_BRIDGE, ovsrec_mstp_instance_port_set_designated_bridge},
+                                               {DESIGNATED_PORT, ovsrec_mstp_instance_port_set_designated_port}
+                                             };
+
+
 /**********************************************************************
  * Pool implementation: this is diferrent from the LAG pool manager.
  * This is currently only used for allocating interface indexes.
@@ -1783,21 +1843,20 @@ const char* intf_get_mac_addr(uint16_t lport)
  *
  * Purpose: Get MAC address for System
  *
- * Params:    none
+ * Params:    mac_buffer : Destination buffer to which mac addres to be copied
  *
  * Returns:   none
  *
  **PROC-*****************************************************************/
 
-const char* system_get_mac_addr(void)
+void system_get_mac_addr(const char *mac_buffer)
 {
     const struct ovsrec_system *system = NULL;
-    const char *mac = NULL;
     MSTP_OVSDB_LOCK;
     system = ovsrec_system_first(idl);
-    mac = xstrdup(system->system_mac);
+    memcpy((void *)mac_buffer, system->system_mac, MSTP_MAC_STR_LEN -1);
     MSTP_OVSDB_UNLOCK;
-    return mac;
+    return;
 }
 
 /**PROC+***********************************************************
@@ -1849,7 +1908,7 @@ void update_mstp_counters(LPORT_t lport, const char *key)
     temp = smap_get(&cist_port->mstp_statistics, key);
     value = (temp)?atoi(temp):0;
     value++;
-    sprintf(count,"%d",value);
+    snprintf(count, sizeof(count), "%d", value);
     smap_clone(&smap, &cist_port->mstp_statistics);
     smap_replace(&smap, key, count);
 
@@ -1889,14 +1948,20 @@ int mstp_global_config_update(void) {
         config_change = TRUE;
     }
     mstp_config_name = smap_get(&bridge_row->other_config,MSTP_CONFIG_NAME);
-    if (!mstp_config_name)
+    if (mstp_config_name)
     {
-        mstp_config_name = xstrdup(system_row->system_mac);
-    }
-    if (strcmp(mstp_global_conf.config_name,mstp_config_name)!= 0) {
-        memset(mstp_global_conf.config_name,0,MSTP_MAX_CONFIG_NAME_LEN);
-        strcpy(mstp_global_conf.config_name,mstp_config_name);
-        config_change = TRUE;
+        if (strncmp(mstp_global_conf.config_name, mstp_config_name, strlen(mstp_config_name)) != 0) {
+            memset(mstp_global_conf.config_name, 0, MSTP_MAX_CONFIG_NAME_LEN);
+            strncpy(mstp_global_conf.config_name, mstp_config_name, MSTP_MAX_CONFIG_NAME_LEN);
+            config_change = TRUE;
+        }
+    } else {
+        mstp_config_name = system_row->system_mac;
+        if (strncmp(mstp_global_conf.config_name, mstp_config_name, MSTP_MAC_STR_LEN -1) != 0) {
+            memset(mstp_global_conf.config_name, 0, MSTP_MAX_CONFIG_NAME_LEN);
+            strncpy(mstp_global_conf.config_name, mstp_config_name, MSTP_MAC_STR_LEN -1);
+            config_change = TRUE;
+        }
     }
     if(config_change)
     {
@@ -2664,6 +2729,8 @@ util_add_default_ports_to_mist() {
                 VLOG_ERR("Failed to create Transaction for MSTI Port Info");
                 ovsdb_idl_txn_commit_block(txn);
                 ovsdb_idl_txn_destroy(txn);
+                if(mstp_port_info)
+                    free(mstp_port_info);
                 return;
             }
             if (!bridge_row->ports[i])
@@ -2671,6 +2738,8 @@ util_add_default_ports_to_mist() {
                 VLOG_ERR("Failed to get Port Info for MSTP MSTI PORT");
                 ovsdb_idl_txn_commit_block(txn);
                 ovsdb_idl_txn_destroy(txn);
+                if(mstp_port_info)
+                    free(mstp_port_info);
                 return;
             }
 
@@ -2696,7 +2765,8 @@ util_add_default_ports_to_mist() {
         }
         ovsrec_mstp_instance_set_mstp_instance_ports (mstp_row,
                 mstp_port_info, msti_port_count);
-        free(mstp_port_info);
+        if(mstp_port_info)
+            free(mstp_port_info);
         ovsdb_idl_txn_commit_block(txn);
         ovsdb_idl_txn_destroy(txn);
     }
@@ -2800,6 +2870,8 @@ util_add_default_ports_to_cist() {
             VLOG_ERR("Failed to create Transaction for Cist Port Info");
             ovsdb_idl_txn_commit_block(txn);
             ovsdb_idl_txn_destroy(txn);
+            if(cist_port_info)
+                free(cist_port_info);
             return;
         }
         if (!bridge_row->ports[i])
@@ -2807,6 +2879,8 @@ util_add_default_ports_to_cist() {
             VLOG_ERR("Failed to get Port Info for MSTP CIST Port");
             ovsdb_idl_txn_commit_block(txn);
             ovsdb_idl_txn_destroy(txn);
+            if(cist_port_info)
+                free(cist_port_info);
             return;
         }
 
@@ -2844,7 +2918,8 @@ util_add_default_ports_to_cist() {
     }
     ovsrec_mstp_common_instance_set_mstp_common_instance_ports (cist_row,
                 cist_port_info, cist_port_count);
-    free(cist_port_info);
+    if(cist_port_info)
+        free(cist_port_info);
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
 }
@@ -3129,7 +3204,7 @@ util_mstp_set_defaults() {
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
-    if (!vlans)
+    if (vlans)
     {
         free(vlans);
     }
@@ -3147,12 +3222,13 @@ util_mstp_set_defaults() {
  **PROC-*****************************************************************/
 
 void
-mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
+mstp_util_set_cist_port_table_bool (const char *if_name, const char *field,
         const bool value) {
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    char *column = NULL;
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
-        if (strcmp(cist_port_row->port->name, if_name) == 0) {
+        if (strncmp(cist_port_row->port->name, if_name, strlen(if_name)) == 0) {
             break;
         }
     }
@@ -3161,7 +3237,8 @@ mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
         return;
     }
 
-    if (strcmp(key, MSTP_OPER_EDGE) == 0) {
+    column = MSTP_OPER_EDGE;
+    if (strncmp(field, column, strlen(column)) == 0) {
         ovsrec_mstp_common_instance_port_set_oper_edge_port(
                 cist_port_row, &value, 1);
     }
@@ -3181,47 +3258,17 @@ mstp_util_set_cist_port_table_bool (const char *if_name, const char *key,
 void
 mstp_util_set_cist_table_value (const char *key, int64_t value) {
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
+    int index ;
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
         return;
     }
 
-    if (strcmp(key, ROOT_PATH_COST) == 0) {
-        ovsrec_mstp_common_instance_set_root_path_cost(cist_row, &value, 1);
-    }
-    else if (strcmp(key, ROOT_PRIORITY) == 0) {
-        ovsrec_mstp_common_instance_set_root_priority(cist_row, &value, 1);
-    }
-    else if (strcmp(key, CIST_PATH_POST) == 0) {
-        ovsrec_mstp_common_instance_set_cist_path_cost(cist_row, &value, 1);
-    }
-    else if (strcmp(key, REMAINING_HOPS) == 0) {
-        ovsrec_mstp_common_instance_set_remaining_hops(cist_row, &value, 1);
-    }
-    else if (strcmp(key, OPER_HELLO_TIME) == 0) {
-        ovsrec_mstp_common_instance_set_oper_hello_time(cist_row, &value, 1);
-    }
-    else if (strcmp(key, OPER_FORWARD_DELAY) == 0) {
-        ovsrec_mstp_common_instance_set_oper_forward_delay(cist_row, &value, 1);
-    }
-    else if (strcmp(key, OPER_MAX_AGE) == 0) {
-        ovsrec_mstp_common_instance_set_oper_max_age(cist_row, &value, 1);
-    }
-    else if (strcmp(key, HELLO_EXPIRY_TIME) == 0) {
-        ovsrec_mstp_common_instance_set_hello_expiry_time(cist_row, &value, 1);
-    }
-    else if (strcmp(key, FORWARD_DELAY_EXP_TIME) == 0) {
-        ovsrec_mstp_common_instance_set_forward_delay_expiry_time(cist_row, &value, 1);
-    }
-    else if (strcmp(key, TIME_SINCE_TOP_CHANGE) == 0) {
-        ovsrec_mstp_common_instance_set_time_since_top_change(cist_row, &value, 1);
-    }
-    else if (strcmp(key, OPER_TX_HOLD_COUNT) == 0) {
-        ovsrec_mstp_common_instance_set_oper_tx_hold_count(cist_row, &value, 1);
-    }
-    else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
-        ovsrec_mstp_common_instance_set_topology_change_count(cist_row, &value, 1);
+    for (index = 0; index < sizeof(cist_value)/sizeof(cist_value[0]); index++) {
+       if(!strncmp(key, cist_value[index].column_str, strlen(cist_value[index].column_str))){
+           cist_value[index].ovsrec_func(cist_row, &value, 1);
+       }
     }
 }
 
@@ -3238,19 +3285,17 @@ mstp_util_set_cist_table_value (const char *key, int64_t value) {
 void
 mstp_util_set_cist_table_string (const char *key, const char *string) {
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
+    int index ;
 
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
         return;
     }
-    if (strcmp(key, DESIGNATED_ROOT) == 0) {
-        ovsrec_mstp_common_instance_set_designated_root(cist_row, string);
-    }
-    else if (strcmp(key, REGIONAL_ROOT) == 0) {
-        ovsrec_mstp_common_instance_set_regional_root(cist_row, string);
-    }
-    else if (strcmp(key, ROOT_PORT) == 0) {
-        ovsrec_mstp_common_instance_set_root_port(cist_row, string);
+
+    for (index = 0; index < sizeof(cist_string)/sizeof(cist_string[0]); index++) {
+       if(!strncmp(key, cist_string[index].column_str, strlen(cist_string[index].column_str))){
+           cist_string[index].ovsrec_func(cist_row, string);
+       }
     }
 }
 /**PROC+***********************************************************
@@ -3267,6 +3312,7 @@ void
 mstp_util_set_cist_port_table_value (const char *if_name, const char *key,
         int64_t value) {
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    int index;
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         if (strcmp(cist_port_row->port->name, if_name) == 0) {
@@ -3278,17 +3324,10 @@ mstp_util_set_cist_port_table_value (const char *if_name, const char *key,
         return;
     }
 
-    if (strcmp(key, CIST_PATH_COST) == 0) {
-        ovsrec_mstp_common_instance_port_set_cist_path_cost(cist_port_row, &value, 1);
-    }
-    else if (strcmp(key, PORT_PATH_COST) == 0) {
-        ovsrec_mstp_common_instance_port_set_port_path_cost(cist_port_row, &value, 1);
-    }
-    else if (strcmp(key, DESIGNATED_PATH_COST) == 0) {
-        ovsrec_mstp_common_instance_port_set_designated_path_cost(cist_port_row, &value, 1);
-    }
-    else if (strcmp(key, PORT_HELLO_TIME) == 0) {
-        ovsrec_mstp_common_instance_port_set_port_hello_time(cist_port_row, &value, 1);
+    for (index = 0; index < sizeof(cist_port_value)/sizeof(cist_port_value[0]); index++) {
+       if(!strncmp(key, cist_port_value[index].column_str, strlen(cist_port_value[index].column_str))){
+           cist_port_value[index].ovsrec_func(cist_port_row, &value, 1);
+       }
     }
 }
 /**PROC+***********************************************************
@@ -3305,6 +3344,7 @@ void
 mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
         char *string) {
     const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    int index;
 
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         if (strcmp(cist_port_row->port->name, if_name) == 0) {
@@ -3316,26 +3356,10 @@ mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
          return;
     }
 
-    if (strcmp(key, PORT_ROLE) == 0) {
-        ovsrec_mstp_common_instance_port_set_port_role(cist_port_row, string);
-    }
-    else if (strcmp(key, PORT_STATE) == 0) {
-        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, string);
-    }
-    else if (strcmp(key, LINK_TYPE) == 0) {
-        ovsrec_mstp_common_instance_port_set_link_type(cist_port_row, string);
-    }
-    else if (strcmp(key, DESIGNATED_PORT) == 0) {
-        ovsrec_mstp_common_instance_port_set_designated_port(cist_port_row, string);
-    }
-    else if (strcmp(key, DESIGNATED_ROOT) == 0) {
-        ovsrec_mstp_common_instance_port_set_designated_root(cist_port_row, string);
-    }
-    else if (strcmp(key, CIST_REGIONAL_ROOT_ID) == 0) {
-        ovsrec_mstp_common_instance_port_set_cist_regional_root_id(cist_port_row, string);
-    }
-    else if (strcmp(key, DESIGNATED_BRIDGE) == 0) {
-        ovsrec_mstp_common_instance_port_set_designated_bridge(cist_port_row, string);
+    for (index = 0; index < sizeof(cist_port_string)/sizeof(cist_port_string[0]); index++) {
+       if(!strncmp(key, cist_port_string[index].column_str, strlen(cist_port_string[index].column_str))){
+           cist_port_string[index].ovsrec_func(cist_port_row, string);
+       }
     }
 }
 
@@ -3355,6 +3379,7 @@ mstp_util_set_msti_table_string (const char *key, const char *string, int mstid)
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     int  i = 0;
+
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -3368,18 +3393,16 @@ mstp_util_set_msti_table_string (const char *key, const char *string, int mstid)
     if (!msti_row) {
          return;
     }
-    if (strcmp(key, DESIGNATED_ROOT) == 0) {
-        ovsrec_mstp_instance_set_designated_root(msti_row, string);
-    }
-    else if (strcmp(key, ROOT_PORT) == 0) {
-        ovsrec_mstp_instance_set_root_port(msti_row, string);
-    }
-    else if (strcmp(key, BRIDGE_IDENTIFIER) == 0) {
-        ovsrec_mstp_instance_set_bridge_identifier(msti_row, string);
-    }
-    else if (strcmp(key, TOPOLOGY_CHANGE) == 0) {
+
+    if (strcmp(key, TOPOLOGY_CHANGE) == 0) {
         bool value = (strcmp(string,"enable") == 0)?TRUE:FALSE;
         ovsrec_mstp_instance_set_topology_unstable(msti_row, &value, 1);
+    } else {
+       for (i = 0; i < sizeof(msti_string)/sizeof(msti_string[0]); i++) {
+           if(!strncmp(key, msti_string[i].column_str, strlen(msti_string[i].column_str))){
+               msti_string[i].ovsrec_func(msti_row, string);
+           }
+       }
     }
 }
 /**PROC+***********************************************************
@@ -3398,6 +3421,7 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
     const struct ovsrec_mstp_instance *msti_row = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     int  i = 0;
+
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -3411,20 +3435,11 @@ mstp_util_set_msti_table_value (const char *key, int64_t value, int mstid) {
     if (!msti_row) {
          return;
     }
-    if (strcmp(key, ROOT_PATH_COST) == 0) {
-        ovsrec_mstp_instance_set_root_path_cost(msti_row, &value, 1);
-    }
-    else if (strcmp(key, ROOT_PRIORITY) == 0) {
-        ovsrec_mstp_instance_set_root_priority(msti_row, &value, 1);
-    }
-    else if (strcmp(key, TIME_SINCE_TOP_CHANGE) == 0) {
-        ovsrec_mstp_instance_set_time_since_top_change(msti_row, &value, 1);
-    }
-    else if (strcmp(key, TOP_CHANGE_CNT) == 0) {
-        ovsrec_mstp_instance_set_topology_change_count(msti_row, &value, 1);
-    }
-    else if (strcmp(key, REMAINING_HOPS) == 0) {
-        ovsrec_mstp_instance_set_remaining_hops(msti_row, &value, 1);
+
+    for (i = 0; i < sizeof(msti_value)/sizeof(msti_value[0]); i++) {
+       if(!strncmp(key, msti_value[i].column_str, strlen(msti_value[i].column_str))){
+           msti_value[i].ovsrec_func(msti_row, &value, 1);
+       }
     }
 }
 
@@ -3445,6 +3460,7 @@ mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, 
     const struct ovsrec_mstp_instance_port *msti_port_row = NULL;
     struct iface_data *idp = NULL;
     int  i = 0, j = 0;
+
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -3469,14 +3485,11 @@ mstp_util_set_msti_port_table_value (const char *key, int64_t value, int mstid, 
     if (!msti_port_row) {
          return;
     }
-    if (strcmp(key, DESIGNATED_ROOT_PRIORITY) == 0) {
-        ovsrec_mstp_instance_port_set_designated_root_priority(msti_port_row, &value, 1);
-    }
-    else if (strcmp(key, DESIGNATED_COST) == 0) {
-        ovsrec_mstp_instance_port_set_designated_cost(msti_port_row, &value, 1);
-    }
-    else if (strcmp(key, DESIGNATED_BRIDGE_PRIORITY) == 0) {
-        ovsrec_mstp_instance_port_set_designated_bridge_priority(msti_port_row, &value, 1);
+
+    for (i = 0; i < sizeof(msti_port_value)/sizeof(msti_port_value[0]); i++) {
+       if(!strncmp(key, msti_port_value[i].column_str, strlen(msti_port_value[i].column_str))){
+           msti_port_value[i].ovsrec_func(msti_port_row, &value, 1);
+       }
     }
 }
 /**PROC+***********************************************************
@@ -3496,6 +3509,7 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
     const struct ovsrec_mstp_instance_port *msti_port_row = NULL;
     struct iface_data *idp = NULL;
     int  i = 0, j = 0;
+
     bridge_row = ovsrec_bridge_first(idl);
     for (i = 0; i < bridge_row->n_mstp_instances; i++)
     {
@@ -3520,20 +3534,11 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
     if (!msti_port_row) {
          return;
     }
-    if (strcmp(key, PORT_ROLE) == 0) {
-        ovsrec_mstp_instance_port_set_port_role(msti_port_row, string);
-    }
-    else if (strcmp(key, PORT_STATE) == 0) {
-        ovsrec_mstp_instance_port_set_port_state(msti_port_row, string);
-    }
-    else if (strcmp(key, DESIGNATED_ROOT) == 0) {
-        ovsrec_mstp_instance_port_set_designated_root(msti_port_row, string);
-    }
-    else if (strcmp(key, DESIGNATED_BRIDGE) == 0) {
-        ovsrec_mstp_instance_port_set_designated_bridge(msti_port_row, string);
-    }
-    else if (strcmp(key, DESIGNATED_PORT) == 0) {
-        ovsrec_mstp_instance_port_set_designated_port(msti_port_row, string);
+
+    for (i = 0; i < sizeof(msti_port_string)/sizeof(msti_port_string[0]); i++) {
+       if(!strncmp(key, msti_port_string[i].column_str, strlen(msti_port_string[i].column_str))){
+           msti_port_string[i].ovsrec_func(msti_port_row, string);
+       }
     }
 }
 /**PROC+***********************************************************
@@ -3650,7 +3655,7 @@ void handle_vlan_add_in_mstp_config(int vlan)
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
-    if (!vlans)
+    if (vlans)
     {
         free(vlans);
     }

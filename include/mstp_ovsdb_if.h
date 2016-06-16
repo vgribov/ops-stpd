@@ -217,6 +217,47 @@ typedef struct mstp_msti_port_stat_info {
     uint16_t designated_port;
 } mstp_msti_port_stat_info;
 
+typedef struct cist_table_value{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_common_instance *, const int64_t *, size_t);
+} cist_table_value;
+
+typedef struct cist_table_string{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_common_instance *, const char *);
+} cist_table_string;
+
+typedef struct cist_port_table_value{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_common_instance_port *, const int64_t *, size_t);
+} cist_port_table_value;
+
+typedef struct cist_port_table_string{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_common_instance_port *, const char *);
+} cist_port_table_string;
+
+typedef struct msti_table_value{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_instance *, const int64_t *, size_t);
+} msti_table_value;
+
+typedef struct msti_table_string{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_instance *, const char *);
+} msti_table_string;
+
+typedef struct msti_port_table_value{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_instance_port *, const int64_t *, size_t);
+} msti_port_table_value;
+
+typedef struct msti_port_table_string{
+    char * column_str;
+    void (* ovsrec_func)(const struct ovsrec_mstp_instance_port *, const char *);
+} msti_port_table_string;
+
+
 struct mstp_global_config mstp_global_conf;
 struct mstp_cist_config mstp_cist_conf;
 struct iface_data *idp_lookup[MAX_ENTRIES_IN_POOL+1];
@@ -230,7 +271,7 @@ void *mstpd_ovs_main_thread(void *arg);
 struct iface_data *find_iface_data_by_index(int index);
 struct iface_data *find_iface_data_by_name(char *name);
 const char * intf_get_mac_addr(uint16_t lport);
-const char* system_get_mac_addr(void);
+void system_get_mac_addr(const char *mac_buffer);
 void update_mstp_counters(LPORT_t lport, const char *key);
 int mstp_cist_config_update();
 int mstp_cist_port_config_update();
