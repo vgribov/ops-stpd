@@ -5981,11 +5981,18 @@ mstp_updtRolesMsti(MSTID_t mstid)
     * variables: 'mstiRootPortId' and 'mstiRootPriority'.
     *------------------------------------------------------------------------*/
    MSTP_MSTI_ROOT_PORT_ID(mstid)  = mstiRootPortId;
-   if (MSTP_MSTI_ROOT_PORT_ID(mstid))
+   if(mstiRootPortId != 0)
    {
-       char root_port[10] = {0};
-       intf_get_port_name(MSTP_GET_PORT_NUM(MSTP_MSTI_ROOT_PORT_ID(mstid)), root_port);
-       mstp_util_set_msti_table_string(ROOT_PORT, root_port, mstid);
+       if (MSTP_MSTI_ROOT_PORT_ID(mstid))
+       {
+           char root_port[10] = {0};
+           intf_get_port_name(MSTP_GET_PORT_NUM(MSTP_MSTI_ROOT_PORT_ID(mstid)), root_port);
+           mstp_util_set_msti_table_string(ROOT_PORT, root_port, mstid);
+       }
+   }
+   else
+   {
+       mstp_util_set_msti_table_string(ROOT_PORT, "0", mstid);
    }
    MSTP_MSTI_ROOT_PRIORITY(mstid) = mstiRootPriVec;
    mstp_util_set_msti_table_value(ROOT_PRIORITY,(MSTP_MSTI_ROOT_PRIORITY(mstid).rgnRootID.priority-mstid),mstid);
