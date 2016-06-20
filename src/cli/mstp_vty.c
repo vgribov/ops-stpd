@@ -431,6 +431,11 @@ cli_show_mstp_config() {
     vty_out(vty, "--------------- ----------------------------------%s",
             VTY_NEWLINE);
 
+    /* Loop for all vlans in CIST */
+    vty_out(vty,"%-16d", MSTP_CISTID);
+    print_vid_for_instance(MSTP_CISTID);
+    vty_out(vty, "%s", VTY_NEWLINE);
+
     /* Loop for all instance in bridge table */
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
 
@@ -741,9 +746,14 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
         return e_vtysh_error;
     }
 
+    if(!if_name) {
+        VLOG_DBG("Invalid Input %s: %d%s", __FILE__, __LINE__, VTY_NEWLINE);
+        return e_vtysh_error;
+    }
+
     /* Get the MSTP row from bridge table*/
     bridge_row = ovsrec_bridge_first(idl);
-    if (bridge_row) {
+    if (bridge_row && (inst_id != MSTP_CISTID)) {
         /* Loop for all instance in bridge table */
         for (i=0; i < bridge_row->n_mstp_instances; i++) {
             if(inst_id == bridge_row->key_mstp_instances[i]) {
@@ -751,14 +761,14 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 break;
             }
         }
-    }
-    if(!mstp_row) {
-        vty_out(vty, "Invalid InstanceId%s", VTY_NEWLINE);
-        return e_vtysh_error;
+        if(!mstp_row) {
+            vty_out(vty, "Invalid InstanceId%s", VTY_NEWLINE);
+            return e_vtysh_error;
+        }
     }
 
     /* Find the MSTP instance port entry matching with the port index */
-    if( if_name != NULL) {
+    if( inst_id != MSTP_CISTID) {
         for (i=0; i < mstp_row->n_mstp_instance_ports; i++) {
             if(!mstp_row->mstp_instance_ports[i]) {
                 vty_out(vty, "No MSTP port record found%s", VTY_NEWLINE);
@@ -773,17 +783,23 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 }
             }
         }
-        OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
-            if (cist_port->port) {
-                if (VTYSH_STR_EQ(cist_port->port->name, if_name)) {
-                     break;
-                }
+        if (!mstp_port_row) {
+            vty_out(vty, "No MSTP port record found%s", VTY_NEWLINE);
+            return e_vtysh_error;
+        }
+    }
+
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        if (cist_port->port) {
+            if (VTYSH_STR_EQ(cist_port->port->name, if_name)) {
+                break;
             }
         }
     }
-    if ((!mstp_port_row) || (!cist_port)) {
-        vty_out(vty, "No MSTP instance port found with this port index%s",
-                VTY_NEWLINE);
+
+    if (!cist_port) {
+        vty_out(vty, "No CIST port record found%s", VTY_NEWLINE);
+        return e_vtysh_error;
     }
 
     vty_out(vty, "Port %s%s", if_name, VTY_NEWLINE);
@@ -807,10 +823,18 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 "Instance", "Role", "State", "Cost", "Priority", "Vlans mapped", VTY_NEWLINE);
         vty_out(vty, "%s %s%s", "-------------- --------------",
                 "---------- ---------- ---------- ----------", VTY_NEWLINE);
-        vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
+        if(inst_id != MSTP_CISTID) {
+            vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
                 mstp_port_row->port_role, mstp_port_row->port_state,
-                *mstp_port_row->admin_path_cost,
+                *mstp_port_row->designated_cost,
                 ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
+        }
+        else{
+            vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
+                cist_port->port_role, cist_port->port_state,
+                *cist_port->cist_path_cost,
+                ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
+        }
 
         /* Vlans Mapped */
         if (mstp_row->vlans) {
@@ -2663,7 +2687,7 @@ DEFUN(show_spanning_mst_inst,
 
 DEFUN(show_spanning_mst_inst_intf,
       show_spanning_mst_inst_intf_cmd,
-      "show spanning-tree mst <1-64> interface IFNAME {detail}",
+      "show spanning-tree mst <0-64> interface IFNAME {detail}",
       SHOW_STR
       SPAN_TREE
       MST_INST
