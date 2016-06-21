@@ -1924,11 +1924,11 @@ mstp_informDBOnPortStateChange(uint32_t operation)
                  char port[20] = {0};
                  intf_get_port_name(lport,port);
                  if (m->mstid != 0){
-                     mstp_util_set_msti_port_table_string("flush_mac","enable",m->mstid,lport);
+                     mstp_util_msti_flush_mac_address(m->mstid,lport);
                  }
                  else
                  {
-                     mstp_util_set_cist_port_table_string(port,"flush_mac","enable");
+                     mstp_util_cist_flush_mac_address(port);
                  }
              }
          }

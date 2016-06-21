@@ -437,6 +437,7 @@ mstpd_ovsdb_init(const char *db_path)
     ovsdb_idl_add_column(idl, &ovsrec_port_col_lacp_status);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_bond_status);
     ovsdb_idl_add_column(idl, &ovsrec_port_col_interfaces);
+    ovsdb_idl_add_column(idl, &ovsrec_port_col_macs_invalid_on_vlans);
 
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_instances);
     ovsdb_idl_add_column(idl, &ovsrec_bridge_col_mstp_common_instance);
@@ -3311,12 +3312,6 @@ mstp_util_set_cist_port_table_string (const char *if_name, const char *key,
     else if (strcmp(key, DESIGNATED_BRIDGE) == 0) {
         ovsrec_mstp_common_instance_port_set_designated_bridge(cist_port_row, string);
     }
-    else if (strcmp(key, "flush_mac") == 0) {
-#if 0
-        bool value = (strcmp(string,"enable") == 0)?TRUE:FALSE;
-        ovsrec_mstp_common_instance_port_set_flush_macaddress(cist_port_row, &value, 1);
-#endif /*0*/
-    }
 }
 
 /**PROC+***********************************************************
@@ -3514,12 +3509,6 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
     }
     else if (strcmp(key, DESIGNATED_PORT) == 0) {
         ovsrec_mstp_instance_port_set_designated_port(msti_port_row, string);
-    }
-    else if (strcmp(key, "flush_mac") == 0) {
-#if 0
-        bool value = (strcmp(string,"enable") == 0)?TRUE:FALSE;
-        ovsrec_mstp_instance_port_set_flush_macaddress(msti_port_row, &value, 1);
-#endif /*0*/
     }
 }
 /**PROC+***********************************************************
@@ -4182,4 +4171,94 @@ void enable_or_disable_port(int lport,bool enable)
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
     MSTP_OVSDB_UNLOCK;
+}
+
+/**PROC+***********************************************************
+ * Name:    mstp_util_msti_flush_mac_address
+ *
+ * Purpose:  trigger mac address flush on on all the corresponding vlans
+ *           for the msti port
+ *
+ * Params:    mstid - instance id
+ *            lport - port on which macs have to be flushed
+ *
+ * Returns:   none
+ *
+ **PROC-*****************************************************************/
+void mstp_util_msti_flush_mac_address(int mstid, int lport)
+{
+    const struct ovsrec_mstp_instance *msti_row = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    const struct ovsrec_mstp_instance_port *msti_port_row = NULL;
+    struct iface_data *idp = NULL;
+    int  i = 0, j = 0;
+
+    bridge_row = ovsrec_bridge_first(idl);
+    for (i = 0; i < bridge_row->n_mstp_instances; i++)
+    {
+        int id = bridge_row->key_mstp_instances[i];
+        if (id == mstid) {
+            msti_row =  bridge_row->value_mstp_instances[i];
+            if (!msti_row) {
+                break;
+            }
+
+            for (j = 0; j < msti_row->n_mstp_instance_ports; j++)
+            {
+                idp = find_iface_data_by_name(msti_row->mstp_instance_ports[j]->port->name);
+                if(!idp)
+                {
+                    return;
+                }
+                if(lport == idp->lport_id) {
+                    msti_port_row = msti_row->mstp_instance_ports[j];
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!msti_row || !msti_port_row)
+    {
+        VLOG_DBG("%s: Finding instance or instance_port failed", __FUNCTION__);
+        return;
+    }
+
+    /*flush mac address one (port, vlan_set) */
+    ovsrec_port_set_macs_invalid_on_vlans(msti_port_row->port,
+                                          msti_row->vlans, msti_row->n_vlans);
+}
+
+/**PROC+***********************************************************
+ * Name:    mstp_util_cist_flush_mac_address
+ *
+ * Purpose:  trigger mac address flush on on all the corresponding vlans
+ *           for the cist port
+ *
+ * Params:    port_name - port on which macs have to be flushed
+ *
+ * Returns:   none
+ *
+ **PROC-*****************************************************************/
+void mstp_util_cist_flush_mac_address(const char *port_name)
+{
+    const struct ovsrec_mstp_common_instance_port *cist_port_row = NULL;
+    const struct ovsrec_mstp_common_instance *cist_row = NULL;
+
+    cist_row = ovsrec_mstp_common_instance_first(idl);
+
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
+        if (strncmp(cist_port_row->port->name, port_name, strlen(port_name)) == 0) {
+            break;
+        }
+    }
+
+    if (!cist_row || !cist_port_row) {
+         VLOG_DBG("%s: Finding instance or instance_port failed", __FUNCTION__);
+         return;
+    }
+
+    /*flush mac address one (port, vlan_set) */
+    ovsrec_port_set_macs_invalid_on_vlans(cist_port_row->port,
+                                          cist_row->vlans, cist_row->n_vlans);
 }
