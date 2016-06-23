@@ -522,9 +522,9 @@ mstpd_protocol_thread(void *arg)
             char port[20] = {0};
             l2port_delete = (mstp_lport_delete *)pmsg->msg;
             lport = l2port_delete->lportindex;
+            strncpy(port,l2port_delete->lportname,PORTNAME_LEN);
             VLOG_DBG("Received an l2port delete event : %d",lport);
             clear_port(&l2ports,lport);
-            intf_get_port_name(lport,port);
             update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_delete);
             update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_delete);
             if (MSTP_ENABLED)

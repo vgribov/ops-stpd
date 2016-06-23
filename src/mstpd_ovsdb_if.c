@@ -922,7 +922,7 @@ send_l2port_add_msg(uint32_t lport)
  **PROC-*****************************************************************/
 
 static void
-send_l2port_delete_msg(uint32_t lport)
+send_l2port_delete_msg(uint32_t lport, char *name)
 {
     VLOG_DBG("L2port delete send event : %d", lport);
     int msgSize = 0;
@@ -938,6 +938,7 @@ send_l2port_delete_msg(uint32_t lport)
         msg->msg_type = e_mstpd_lport_delete;
         event = (mstp_lport_delete *)(msg+1);
         event->lportindex = lport;
+        strncpy(event->lportname,name,PORTNAME_LEN);
         mstpd_send_event(msg);
     }
 }
@@ -1211,7 +1212,7 @@ update_lag_interface(const struct ovsrec_port *prow,
             idp->link_state = new_link_state;
             VLOG_DBG("Lag %s link state changed in DB: "
                      " new_link=%s ",
-                     ifrow->name,
+                     prow->name,
                      (idp->link_state == INTERFACE_LINK_STATE_UP ? "up" : "down"));
             send_link_state_change_msg(idp);
 
@@ -1289,6 +1290,11 @@ update_interface_cache(void)
         const struct ovsrec_interface *ifrow;
         const struct ovsrec_port *prow =
             shash_find_data(&sh_idl_interfaces, sh_node->name);
+        if (!prow)
+        {
+            VLOG_DBG("Port row %s is not found, will be deleted at the end of reconfigure",sh_node->name);
+            continue;
+        }
 
         if (!VERIFY_LAG_IFNAME(prow->name)) {
             /* update lag interface */
@@ -1403,6 +1409,9 @@ static int update_l2port_cache(void)
                         lport = find_next_port_set(&delPortMap, lport))
                 {
                     int j = 0;
+                    char port_name[PORTNAME_LEN]= {0};
+                    strncpy(port_name,cist_port_lookup[lport]->port_name,PORTNAME_LEN);
+                    send_l2port_delete_msg(lport,cist_port_lookup[lport]->port_name);
                     free(cist_port_lookup[lport]);
                     cist_port_lookup[lport] = NULL;
                     for(j = 1; j <= MSTP_INSTANCES_MAX; j++)
@@ -1413,7 +1422,6 @@ static int update_l2port_cache(void)
                             msti_port_lookup[j][lport] = NULL;
                         }
                     }
-                    send_l2port_delete_msg(lport);
                 }
             }
             if(are_any_ports_set(&addPortMap))
@@ -1607,6 +1615,7 @@ mstpd_reconfigure(void)
     if (mstp_global_config_update()) {
         rc++;
     }
+
     /* Update IDL sequence # after we've handled everything. */
     idl_seqno = new_idl_seqno;
 
@@ -2005,6 +2014,7 @@ int mstp_cist_port_config_update(void) {
             {
                 struct mstp_cist_port_config *cist_port = NULL;
                 cist_port = xzalloc(sizeof(mstp_cist_port_config));
+                strncpy(cist_port->port_name,idp->name,PORTNAME_LEN);
                 cist_port->port_priority = *cist_port_row->port_priority;
                 cist_port->admin_path_cost = *cist_port_row->admin_path_cost;
                 cist_port->bpdus_rx_enable = *cist_port_row->bpdus_rx_enable;
@@ -2267,6 +2277,7 @@ int mstp_msti_port_update_config(void)
                 {
                     struct mstp_msti_port_config *msti_port = NULL;
                     msti_port = xzalloc(sizeof(struct mstp_msti_port_config));
+                    strncpy(msti_port->port_name,idp->name,PORTNAME_LEN);
                     msti_port->priority = *mstp_inst_port->port_priority;
                     msti_port->path_cost = *mstp_inst_port->admin_path_cost;
                     msti_port->port = lport;
@@ -2892,7 +2903,14 @@ util_mstp_instance_status_clean(time_t curr_time, const struct ovsrec_system *sy
                 assert(0);
                 return;
             }
-            ovsrec_mstp_instance_port_set_port_state( mstp_port_row, MSTP_STATE_BLOCK);
+            if (!strcmp(mstp_port_row->port->admin,OVSREC_PORT_ADMIN_UP))
+            {
+                ovsrec_mstp_instance_port_set_port_state( mstp_port_row, MSTP_STATE_FORWARD);
+            }
+            else
+            {
+                ovsrec_mstp_instance_port_set_port_state( mstp_port_row, MSTP_STATE_BLOCK);
+            }
             ovsrec_mstp_instance_port_set_port_role( mstp_port_row, MSTP_ROLE_DISABLE);
             ovsrec_mstp_instance_port_set_designated_root(mstp_port_row, system_row->system_mac);
             ovsrec_mstp_instance_port_set_designated_root_priority(mstp_port_row, &def_zero, 1);
@@ -2962,7 +2980,14 @@ util_mstp_common_instance_status_clean(time_t curr_time, const struct ovsrec_sys
     /* MSTP common instance port clean */
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         ovsrec_mstp_common_instance_port_set_port_role(cist_port_row, MSTP_ROLE_DISABLE);
-        ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, MSTP_STATE_BLOCK);
+        if (!strcmp(cist_port_row->port->admin,OVSREC_PORT_ADMIN_UP))
+        {
+            ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, MSTP_STATE_FORWARD);
+        }
+        else
+        {
+            ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, MSTP_STATE_BLOCK);
+        }
         ovsrec_mstp_common_instance_port_set_designated_root(cist_port_row, system_row->system_mac);
         ovsrec_mstp_common_instance_port_set_link_type(cist_port_row, DEF_LINK_TYPE);
         ovsrec_mstp_common_instance_port_set_oper_edge_port(cist_port_row, &bool_false, 1);
@@ -3742,13 +3767,6 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
         MSTP_OVSDB_UNLOCK;
         return;
     }
-    idp = find_iface_data_by_name(name);
-    if (!idp)
-    {
-        ovsdb_idl_txn_destroy(txn);
-        MSTP_OVSDB_UNLOCK;
-        return;
-    }
     if (strcmp(name,DEFAULT_BRIDGE_NAME) == 0)
     {
         ovsdb_idl_txn_destroy(txn);
@@ -3768,6 +3786,13 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
     }
     if (operation == e_mstpd_lport_add && !cist_port_row) {
         bool found = false;
+        idp = find_iface_data_by_name(name);
+        if (!idp)
+        {
+            ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+            return;
+        }
         /* FILL the default values for CIST_port entry */
         for (i = 0; i < bridge_row->n_ports; i++)
         {

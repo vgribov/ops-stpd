@@ -17,6 +17,7 @@
 #ifndef __MSTP_CMN_H__
 #define __MSTP_CMN_H__
 #include "mstp_fsm.h"
+#include "mstp_mapping.h"
 typedef enum mstpd_message_type_enum {
     e_mstpd_timer=1,
     e_mstpd_lport_up,
@@ -47,7 +48,7 @@ typedef struct mstp_lport_add {
 } mstp_lport_add;
 
 typedef struct mstp_lport_delete {
-    char *lportname;
+    char lportname[PORTNAME_LEN];
     int lportindex;
 } mstp_lport_delete;
 

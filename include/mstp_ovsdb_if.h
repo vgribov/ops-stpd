@@ -118,6 +118,7 @@ typedef struct mstp_msti_config {
 
 typedef struct mstp_msti_port_config {
     uint16_t port;
+    char port_name[PORTNAME_LEN];
     uint16_t mstid;
     uint32_t priority;
     uint32_t path_cost;
@@ -167,6 +168,7 @@ typedef struct mstp_cist_stat_info {
 
 typedef struct mstp_cist_port_config {
     uint16_t port;
+    char port_name[PORTNAME_LEN];
     uint16_t port_priority;
     uint32_t admin_path_cost;
     bool admin_edge_port_disable;
