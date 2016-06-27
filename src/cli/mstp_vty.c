@@ -490,7 +490,6 @@ mstp_show_common_instance_info(
         }
     }
 
-
     if(cist_row->regional_root) {
         memset(root_mac, 0, sizeof(root_mac));
         sscanf(cist_row->regional_root, "%d.%d.%s", &priority, &sys_id, root_mac);
@@ -498,7 +497,6 @@ mstp_show_common_instance_info(
             vty_out(vty, "%-14s%s", "Regional Root", VTY_NEWLINE);
         }
     }
-
 
     vty_out(vty, "%-14s %s:%2ld  %s:%2ld  %s:%2ld  %s:%2ld%s", "Operational",
             "Hello time(in seconds)",
@@ -629,8 +627,7 @@ mstp_show_common_instance_port_info(
  ------------------------------------------------------------------------------
  */
 static int
-mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
-                   int64_t inst_id, const struct ovsrec_mstp_instance *mstp_row) {
+mstp_show_instance_info(int64_t inst_id, const struct ovsrec_mstp_instance *mstp_row) {
     const struct ovsrec_system *system_row = NULL;
     const struct ovsrec_mstp_instance_port *mstp_port = NULL;
     int j = 0;
@@ -638,12 +635,6 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     struct shash sorted_port_id;
     char root_mac[OPS_MAC_STR_SIZE] = {0};
     int priority = 0, sys_id = 0;
-
-    if (!cist_row) {
-        VLOG_DBG("Invalid arguments for mstp_show_instance_info %s: %d\n",
-                __FILE__, __LINE__);
-        return e_vtysh_error;
-    }
 
     system_row = ovsrec_system_first(idl);
     if (!system_row) {
@@ -676,7 +667,7 @@ mstp_show_instance_info(const struct ovsrec_mstp_common_instance *cist_row,
     vty_out(vty, "%19s:%s, Cost:%ld, Rem Hops:%ld%s", "Port",
             (mstp_row->root_port)?mstp_row->root_port:"0",
             (mstp_row->root_path_cost)?*mstp_row->root_path_cost:DEF_MSTP_COST,
-            (cist_row->remaining_hops)?*cist_row->remaining_hops:(int64_t)0,
+            (mstp_row->remaining_hops)?*mstp_row->remaining_hops:(int64_t)0,
             VTY_NEWLINE);
 
     vty_out(vty, "%s%-14s %-14s %-10s %-7s %-10s %s%s", VTY_NEWLINE,
@@ -740,6 +731,18 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
     const struct ovsrec_mstp_common_instance *cist_row = NULL;
     int i = 0;
 
+    bridge_row = ovsrec_bridge_first(idl);
+    if (!bridge_row) {
+        vty_out(vty, "No record found.%s", VTY_NEWLINE);
+        return e_vtysh_error;
+    }
+
+    if (!(bridge_row->mstp_enable) ||
+            (*bridge_row->mstp_enable == DEF_ADMIN_STATUS)) {
+        vty_out(vty, "Spanning-tree is disabled%s", VTY_NEWLINE);
+        return e_vtysh_ok;
+    }
+
     cist_row = ovsrec_mstp_common_instance_first (idl);
     if (!cist_row) {
         vty_out(vty, "No MSTP common instance record found%s", VTY_NEWLINE);
@@ -752,8 +755,7 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
     }
 
     /* Get the MSTP row from bridge table*/
-    bridge_row = ovsrec_bridge_first(idl);
-    if (bridge_row && (inst_id != MSTP_CISTID)) {
+    if (inst_id != MSTP_CISTID) {
         /* Loop for all instance in bridge table */
         for (i=0; i < bridge_row->n_mstp_instances; i++) {
             if(inst_id == bridge_row->key_mstp_instances[i]) {
@@ -895,7 +897,7 @@ cli_show_mst(int inst_id, bool detail_flag) {
                 return e_vtysh_error;
             }
             vty_out(vty, "%s", VTY_NEWLINE);
-            mstp_show_instance_info(cist_row, bridge_row->key_mstp_instances[i], mstp_row);
+            mstp_show_instance_info(bridge_row->key_mstp_instances[i], mstp_row);
         }
     }
 
@@ -918,7 +920,7 @@ cli_show_mst(int inst_id, bool detail_flag) {
         }
 
         /* Display MST instance data specific for specific instanceID */
-        mstp_show_instance_info(cist_row, inst_id, mstp_row);
+        mstp_show_instance_info(inst_id, mstp_row);
     }
 
     /* Display common instance ports data */

@@ -3516,7 +3516,6 @@ mstp_recordTimes(MSTID_t mstid,  LPORT_t lport)
           cistPortPtr->portTimes.fwdDelay   = cistPortPtr->msgTimes.fwdDelay;
       }
       if (cistPortPtr->portTimes.hops != cistPortPtr->msgTimes.hops) {
-          mstp_util_set_cist_table_value(REMAINING_HOPS, cistPortPtr->msgTimes.hops);
           cistPortPtr->portTimes.hops       = cistPortPtr->msgTimes.hops;
       }
       if (cistPortPtr->portTimes.helloTime != cistPortPtr->msgTimes.helloTime) {
@@ -5303,10 +5302,12 @@ mstp_updtRolesCist(void)
                                          MSTP_PORT_RCVD_INTERNAL))
             {/* the Port Priority Vector was received from a Bridge that is
               * in a different MST Region than this receiving Bridge */
-
+               char port[20] = {0};
+               intf_get_port_name(lport,port);
                rootPathPriVec.extRootPathCost +=
                                              commPortPtr->ExternalPortPathCost;
                mstp_util_set_cist_table_value(CIST_PATH_COST,rootPathPriVec.extRootPathCost);
+               mstp_util_set_cist_port_table_value(port,CIST_PATH_COST,rootPathPriVec.extRootPathCost);
                rootPathPriVec.rgnRootID = MSTP_CIST_BRIDGE_IDENTIFIER;
                /* the Internal Root Path Cost component of the Message Priority
                 * Vector must have been set to zero on reception */
@@ -5466,6 +5467,7 @@ mstp_updtRolesCist(void)
       mstp_util_set_cist_table_value(OPER_FORWARD_DELAY, mstp_Bridge.FwdDelay);
       mstp_util_set_cist_table_value(OPER_MAX_AGE, mstp_Bridge.MaxAge);
       mstp_util_set_cist_table_value(OPER_TX_HOLD_COUNT, mstp_Bridge.TxHoldCount);
+      mstp_util_set_cist_table_string(ROOT_PORT,"0");
    }
    else
    {/* case 2) from the above */
@@ -5504,6 +5506,7 @@ mstp_updtRolesCist(void)
    {
       /* If there is a change in the root times, inform this to standby */
       mstp_updtMstiRootInfoChg(MSTP_CISTID);
+      mstp_util_set_cist_table_value(REMAINING_HOPS, MSTP_CIST_ROOT_TIMES.hops);
    }
    /*-------------------------------------------------------------------------
     * After calculation of the Bridge's Root Priority Vector and Root Times
@@ -5568,6 +5571,9 @@ mstp_updtRolesCist(void)
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
          mstp_util_set_cist_port_table_string(port_name,DESIGNATED_BRIDGE,designatedBridge);
 
+         if(MAC_ADDRS_EQUAL(&cistPortPtr->designatedPriority.rootID, &cistPortPtr->designatedPriority.dsnBridgeID)) {
+             mstp_util_set_cist_port_table_value(port_name, CIST_PATH_COST, (int64_t)0);
+         }
          /*-------------------------------------------------------------------
           * 3). Substitute 'DesignatedPortID' with this Port Identifier
           *------------------------------------------------------------------*/
@@ -7807,7 +7813,7 @@ mstp_convertLportSpeedToPathCost(SPEED_DPLX* speedDplx)
             break;
         default:
             //STP_ASSERT(0);
-            return MSTP_PORT_PATH_COST_ETHERNET;
+            return DEF_MSTP_COST;
             break;
     }
 }
