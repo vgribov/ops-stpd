@@ -703,7 +703,7 @@ mstp_show_instance_info(int64_t inst_id, const struct ovsrec_mstp_instance *mstp
             vty_out(vty, "%-14s %-14s %-10s %-7ld %-10ld %s%s",
                     mstp_port->port->name, mstp_port->port_role,
                     mstp_port->port_state,
-                    (mstp_port->designated_cost)?*mstp_port->designated_cost:0,
+                    (mstp_port->admin_path_cost)?*mstp_port->admin_path_cost:DEF_MSTP_COST,
                     ((*mstp_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                     DEF_LINK_TYPE, VTY_NEWLINE);
         }
@@ -827,9 +827,9 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
                 "---------- ---------- ---------- ----------", VTY_NEWLINE);
         if(inst_id != MSTP_CISTID) {
             vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
-                mstp_port_row->port_role, mstp_port_row->port_state,
-                *mstp_port_row->designated_cost,
-                ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
+                    mstp_port_row->port_role, mstp_port_row->port_state,
+                    (mstp_port_row->admin_path_cost)?*mstp_port_row->admin_path_cost:DEF_MSTP_COST,
+                    ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
         }
         else{
             vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,

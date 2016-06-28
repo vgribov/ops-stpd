@@ -2472,6 +2472,7 @@ void clear_mstp_msti_port_config() {
 void
 mstp_config_reinit() {
     MSTP_OVSDB_LOCK;
+    mstp_free_event_queue();
     clear_mstp_global_config();
     clear_mstp_cist_config();
     clear_mstp_cist_port_config();

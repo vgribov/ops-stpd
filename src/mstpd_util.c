@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 
+#include <errno.h>
 #include <util.h>
 #include <daemon.h>
 #include <dirs.h>
@@ -4994,9 +4995,9 @@ mstp_txMstp(LPORT_t lport)
    pkt->pktLen = ENET_HDR_SIZ + bpduLen;
    rc = sendto(idp->pdu_sockfd, pkt->data, pkt->pktLen, 0, NULL, 0);
    if (rc == -1) {
-       VLOG_ERR("Failed to send MSTPDU for interface=%s, rc=%d",
-               idp->name, rc);
-       STP_ASSERT(FALSE);
+       VLOG_ERR("Failed to send MSTPDU for interface=%s, rc=%d, sockfd = %d, errno : %s",
+               idp->name, rc, idp->pdu_sockfd, strerror(errno));
+       return;
    }
    VLOG_DBG("If it is here!! Packet is OUT successfully!!!");
 

@@ -86,6 +86,7 @@ typedef struct mstpd_message_struct
 
 } mstpd_message;
 
+int mstp_free_event_queue(void);
 int mstpd_send_event(mstpd_message *pmsg);
 mstpd_message* mstpd_wait_for_next_event(void);
 void mstpd_event_free(mstpd_message *pmsg);
