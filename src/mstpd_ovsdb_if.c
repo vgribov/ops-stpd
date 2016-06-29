@@ -4042,7 +4042,7 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
             }
 
             for (k = 0,j =0; k < msti_row->n_mstp_instance_ports; k++) {
-                if(msti_row->mstp_instance_ports[i]->port && strcmp(msti_row->mstp_instance_ports[i]->port->name,name) != 0)
+                if(msti_row->mstp_instance_ports[k]->port && strcmp(msti_row->mstp_instance_ports[k]->port->name,name) != 0)
                 {
                     msti_port_info[j++] = msti_row->mstp_instance_ports[k];
                 }
