@@ -414,6 +414,9 @@ mstpd_protocol_thread(void *arg)
     mstp_admin_status *status;
     MSTP_RX_PDU *pkt;
     bool informDB = TRUE;
+    uint32_t vlan = 0;
+    uint32_t lport = 0;
+    char port[PORTNAME_LEN] = {0};
 
     /* Detach thread to avoid memory leak upon exit. */
     pthread_detach(pthread_self());
@@ -440,241 +443,234 @@ mstpd_protocol_thread(void *arg)
             VLOG_ERR("MSTPD protocol: Received NULL event!");
             continue;
         }
-        if (pmsg->msg_type == e_mstpd_global_config) {
-            update_mstp_global_config(pmsg);
-            VLOG_DBG("Received a Global Config Update");
-            continue;
-        }
-        if (pmsg->msg_type == e_mstpd_cist_config) {
-            update_mstp_cist_config(pmsg);
-            VLOG_DBG("Received a CIST config Update");
-            continue;
-        }
-        if (pmsg->msg_type == e_mstpd_cist_port_config) {
-            update_mstp_cist_port_config(pmsg);
-            VLOG_DBG("Received a CIST Port config Update");
-            continue;
-        }
-        if (pmsg->msg_type == e_mstpd_msti_config) {
-            update_mstp_msti_config(pmsg);
-            VLOG_DBG("Received a MSTI config Update");
-            continue;
-        }
-        if (pmsg->msg_type == e_mstpd_msti_port_config) {
-            update_mstp_msti_port_config(pmsg);
-            VLOG_DBG("Received a MSTI Port config Update");
-            continue;
-        }
-        if (pmsg->msg_type == e_mstpd_msti_config_delete) {
-            delete_mstp_msti_config(pmsg);
-            VLOG_DBG("Received a MSTI config Update");
-            continue;
-        }
 
-        if(pmsg->msg_type == e_mstpd_vlan_add) {
-            VLOG_DBG("%s: Received VLAN Add Event", __FUNCTION__);
-            uint32_t vlan = 0;
-            vlan_add = (mstp_vlan_add *)pmsg->msg;
-            vlan = vlan_add->vid;
-            VLOG_DBG("Received an VLAN Add event: %d",vlan);
-            handle_vlan_add_in_mstp_config(vlan);
-            continue;
-        }
+        switch (pmsg->msg_type)
+        {
+            case e_mstpd_global_config:
+                update_mstp_global_config(pmsg);
+                VLOG_DBG("Received a Global Config Update");
+                break;
 
-        if(pmsg->msg_type == e_mstpd_vlan_delete) {
-            VLOG_DBG("%s: Received VLAN Delete Event", __FUNCTION__);
-            uint32_t vlan = 0;
-            vlan_delete = (mstp_vlan_delete *)pmsg->msg;
-            vlan = vlan_delete->vid;
-            VLOG_DBG("Received an VLAN Delete event: %d",vlan);
-            //handle_vlan_delete_in_mstp_config(vlan);
-            continue;
-        }
+            case e_mstpd_cist_config:
+                update_mstp_cist_config(pmsg);
+                VLOG_DBG("Received a CIST config Update");
+                break;
 
-        if(pmsg->msg_type == e_mstpd_lport_add) {
-            VLOG_DBG("%s : Recieved lport add event", __FUNCTION__);
-            uint32_t lport = 0;
-            l2port_add = (mstp_lport_add *)pmsg->msg;
-            lport = l2port_add->lportindex;
-            char port[20] = {0};
-            set_port(&l2ports,lport);
-            intf_get_port_name(lport,port);
-            update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_add);
-            update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_add);
-            update_mstp_on_lport_add(lport);
-            if (MSTP_ENABLED)
-            {
-                register_stp_mcast_addr(lport);
-                mstp_addLport(lport);
-                if(!is_lport_down(lport))
+            case e_mstpd_cist_port_config:
+                update_mstp_cist_port_config(pmsg);
+                VLOG_DBG("Received a CIST Port config Update");
+                break;
+
+            case e_mstpd_msti_config:
+                update_mstp_msti_config(pmsg);
+                VLOG_DBG("Received a MSTI config Update");
+                break;
+
+            case e_mstpd_msti_port_config:
+                update_mstp_msti_port_config(pmsg);
+                VLOG_DBG("Received a MSTI Port config Update");
+                break;
+
+            case e_mstpd_msti_config_delete:
+                delete_mstp_msti_config(pmsg);
+                VLOG_DBG("Received a MSTI config Update");
+                break;
+            case e_mstpd_vlan_add:
+                vlan = 0;
+                VLOG_DBG("%s: Received VLAN Add Event", __FUNCTION__);
+                vlan_add = (mstp_vlan_add *)pmsg->msg;
+                vlan = vlan_add->vid;
+                VLOG_DBG("Received an VLAN Add event: %d",vlan);
+                handle_vlan_add_in_mstp_config(vlan);
+                break;
+            case e_mstpd_vlan_delete:
+                vlan = 0;
+                VLOG_DBG("%s: Received VLAN Delete Event", __FUNCTION__);
+                vlan_delete = (mstp_vlan_delete *)pmsg->msg;
+                vlan = vlan_delete->vid;
+                VLOG_DBG("Received an VLAN Delete event: %d",vlan);
+                break;
+            case e_mstpd_lport_add:
+                VLOG_DBG("%s : Recieved lport add event", __FUNCTION__);
+                lport = 0;
+                l2port_add = (mstp_lport_add *)pmsg->msg;
+                lport = l2port_add->lportindex;
+                memset(port,0,PORTNAME_LEN);
+                set_port(&l2ports,lport);
+                intf_get_port_name(lport,port);
+                update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_add);
+                update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_add);
+                update_mstp_on_lport_add(lport);
+                if (MSTP_ENABLED)
                 {
-                    SPEED_DPLX    ports_cfg = {0};
-                    intf_get_lport_speed_duplex(lport,&ports_cfg);
-                    mstp_portAutoDetectParamsSet(lport, &ports_cfg);
-                    mstp_portEnable(lport);
-                }
-            }
-            continue;
-        }
-        if(pmsg->msg_type == e_mstpd_lport_delete) {
-            VLOG_DBG("%s : Recieved lport delete event", __FUNCTION__);
-            uint32_t lport = 0;
-            char port[20] = {0};
-            l2port_delete = (mstp_lport_delete *)pmsg->msg;
-            lport = l2port_delete->lportindex;
-            strncpy(port,l2port_delete->lportname,PORTNAME_LEN);
-            VLOG_DBG("Received an l2port delete event : %d",lport);
-            clear_port(&l2ports,lport);
-            update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_delete);
-            update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_delete);
-            if (MSTP_ENABLED)
-            {
-                deregister_stp_mcast_addr(lport);
-                mstp_removeLport(lport);
-            }
-            continue;
-        }
-
-        if ((pmsg->msg_type == e_mstpd_lport_up) ||
-            (pmsg->msg_type == e_mstpd_lport_down)) {
-            /***********************************************************
-             * Msg from OVSDB interface for lports.
-             ***********************************************************/
-            if (pmsg->msg_type == e_mstpd_lport_up)
-            {
-                uint16_t lport = 0;
-                SPEED_DPLX    ports_cfg = {0};
-                state = (mstp_lport_state_change *)pmsg->msg;
-                lport = state->lportindex;
-                intf_get_lport_speed_duplex(lport,&ports_cfg);
-                if(MSTP_ENABLED)
-                {
-                    MSTP_COMM_PORT_INFO_t *commPortPtr = MSTP_COMM_PORT_PTR(lport);
-
-                    if(commPortPtr)
+                    register_stp_mcast_addr(lport);
+                    mstp_addLport(lport);
+                    if(!is_lport_down(lport))
                     {
-                        /*------------------------------------------------------------
-                         * inform MSTP about 'Up' event for the port
-                         *------------------------------------------------------------*/
+                        SPEED_DPLX    ports_cfg = {0};
+                        intf_get_lport_speed_duplex(lport,&ports_cfg);
                         mstp_portAutoDetectParamsSet(lport, &ports_cfg);
                         mstp_portEnable(lport);
                     }
                 }
-                else
+                break;
+            case e_mstpd_lport_delete:
+                VLOG_DBG("%s : Recieved lport delete event", __FUNCTION__);
+                lport = 0;
+                memset(port,0,PORTNAME_LEN);
+                l2port_delete = (mstp_lport_delete *)pmsg->msg;
+                lport = l2port_delete->lportindex;
+                strncpy(port,l2port_delete->lportname,PORTNAME_LEN);
+                VLOG_DBG("Received an l2port delete event : %d",lport);
+                clear_port(&l2ports,lport);
+                update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_delete);
+                update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_delete);
+                if (MSTP_ENABLED)
                 {
-                    /*---------------------------------------------------------------
-                     * MSTP is disabled, propagate port 'Up' state throughout
-                     * the system
-                     *---------------------------------------------------------------*/
-                    mstp_noStpPropagatePortUpState(lport);
+                    deregister_stp_mcast_addr(lport);
+                    mstp_removeLport(lport);
                 }
-
-            }
-            else if (pmsg->msg_type == e_mstpd_lport_down)
-            {
-                uint16_t lport = 0;
-                state = (mstp_lport_state_change *)pmsg->msg;
-                lport = state->lportindex;
-                if(MSTP_ENABLED)
+                break;
+            case e_mstpd_lport_up:
+            case e_mstpd_lport_down:
+                /***********************************************************
+                 * Msg from OVSDB interface for lports.
+                 ***********************************************************/
+                if (pmsg->msg_type == e_mstpd_lport_up)
                 {
-                    MSTP_COMM_PORT_INFO_t *commPortPtr = MSTP_COMM_PORT_PTR(lport);
-                    if(commPortPtr)
+                    uint16_t lport = 0;
+                    SPEED_DPLX    ports_cfg = {0};
+                    state = (mstp_lport_state_change *)pmsg->msg;
+                    lport = state->lportindex;
+                    intf_get_lport_speed_duplex(lport,&ports_cfg);
+                    if(MSTP_ENABLED)
                     {
-                        /*------------------------------------------------------------
-                         * MSTP is enabled, inform it about 'Down' event for the port
-                         *------------------------------------------------------------*/
-                        mstp_portDisable(lport);
+                        MSTP_COMM_PORT_INFO_t *commPortPtr = MSTP_COMM_PORT_PTR(lport);
+
+                        if(commPortPtr)
+                        {
+                            /*------------------------------------------------------------
+                             * inform MSTP about 'Up' event for the port
+                             *------------------------------------------------------------*/
+                            mstp_portAutoDetectParamsSet(lport, &ports_cfg);
+                            mstp_portEnable(lport);
+                        }
+                    }
+                    else
+                    {
+                        /*---------------------------------------------------------------
+                         * MSTP is disabled, propagate port 'Up' state throughout
+                         * the system
+                         *---------------------------------------------------------------*/
+                        mstp_noStpPropagatePortUpState(lport);
+                    }
+
+                }
+                else if (pmsg->msg_type == e_mstpd_lport_down)
+                {
+                    uint16_t lport = 0;
+                    state = (mstp_lport_state_change *)pmsg->msg;
+                    lport = state->lportindex;
+                    if(MSTP_ENABLED)
+                    {
+                        MSTP_COMM_PORT_INFO_t *commPortPtr = MSTP_COMM_PORT_PTR(lport);
+                        if(commPortPtr)
+                        {
+                            /*------------------------------------------------------------
+                             * MSTP is enabled, inform it about 'Down' event for the port
+                             *------------------------------------------------------------*/
+                            mstp_portDisable(lport);
+                        }
+                    }
+                    else
+                    {
+                        /*---------------------------------------------------------------
+                         * MSTP is disabled, propagate port 'Down' state throughout
+                         * the system
+                         *---------------------------------------------------------------*/
+                        mstp_noStpPropagatePortDownState(lport);
+                    }
+
+                }
+                break;
+            case e_mstpd_admin_status:
+                VLOG_DBG("%s : Admin Status Update", __FUNCTION__);
+                status = (mstp_admin_status *)pmsg->msg;
+                if (status->status == true)
+                {
+                    mstp_enable = true;
+                    uint16_t port = 0;
+                    for (port = find_first_port_set(&l2ports);
+                            port > 0 && port <= MAX_LPORTS;
+                            port = find_next_port_set(&l2ports, port))
+                    {
+                        register_stp_mcast_addr(port);
                     }
                 }
                 else
                 {
-                    /*---------------------------------------------------------------
-                     * MSTP is disabled, propagate port 'Down' state throughout
-                     * the system
-                     *---------------------------------------------------------------*/
-                    mstp_noStpPropagatePortDownState(lport);
-                }
+                    mstp_enable = false;
+                    uint16_t port = 0;
+                    for (port = find_first_port_set(&l2ports);
+                            port > 0 && port <= MAX_LPORTS;
+                            port = find_next_port_set(&l2ports, port))
+                    {
+                        deregister_stp_mcast_addr(port);
+                    }
 
-            }
-        } else if (pmsg->msg_type == e_mstpd_admin_status) {
-            VLOG_DBG("%s : Admin Status Update", __FUNCTION__);
-            status = (mstp_admin_status *)pmsg->msg;
-            if (status->status == true)
-            {
-                mstp_enable = true;
-                uint16_t port = 0;
-                for (port = find_first_port_set(&l2ports);
-                        port > 0 && port <= MAX_LPORTS;
-                        port = find_next_port_set(&l2ports, port))
+                }
+                mstp_adminStatusUpdate(mstp_enable);
+                break;
+            case e_mstpd_timer:
+                /***********************************************************
+                 * Msg from MSTP timers.
+                 ***********************************************************/
+                if(MSTP_ENABLED)
                 {
-                    register_stp_mcast_addr(port);
+                    mstp_processTimerTickEvent();
                 }
-            }
-            else
-            {
-                mstp_enable = false;
-                uint16_t port = 0;
-                for (port = find_first_port_set(&l2ports);
-                        port > 0 && port <= MAX_LPORTS;
-                        port = find_next_port_set(&l2ports, port))
+                VLOG_DBG("%s : Recieved one sec timer tick event", __FUNCTION__);
+                break;
+            case e_mstpd_rx_bpdu:
+                pkt = (MSTP_RX_PDU *)pmsg->msg;
+                /***********************************************************
+                 * Packet has arrived through interface socket.
+                 ************************************************************/
+                VLOG_DBG("%s : MSTP BPDU Packet arrived from interface socket",
+                        __FUNCTION__);
+                if(MSTP_ENABLED)
                 {
-                    deregister_stp_mcast_addr(port);
+                    MSTP_PKT_TYPE_t pktType;
+                    pktType = mstp_decodeBpdu(pkt);
+                    VLOG_DBG("%d : MSTP BPDU Packet arrived from interface socket", pktType);
+                    switch (pktType) {
+                        case MSTP_UNAUTHORIZED_BPDU_DATA_PKT:
+                            mstp_processUnauthorizedBpdu(pkt, BPDU_PROTECTION);
+                            break;
+
+                        case MSTP_ERRANT_PROTOCOL_DATA_PKT:
+                            mstp_errantProtocolData(pkt, BPDU_FILTER);
+                            break;
+
+                        case MSTP_PROTOCOL_DATA_PKT:
+                            mstp_protocolData(pkt);
+                            informDB = FALSE; /*Call already made in mstp_protocolData*/
+                            break;
+
+                        case MSTP_INVALID_PKT:
+                            break;
+
+                        default:
+                            STP_ASSERT(0);
+                            break;
+                    }
                 }
-
-            }
-            mstp_adminStatusUpdate(mstp_enable);
-        } else if (pmsg->msg_type == e_mstpd_timer) {
-            /***********************************************************
-             * Msg from MSTP timers.
-             ***********************************************************/
-            if(MSTP_ENABLED)
-            {
-                mstp_processTimerTickEvent();
-            }
-            VLOG_DBG("%s : Recieved one sec timer tick event", __FUNCTION__);
-
-        } else if (pmsg->msg_type == e_mstpd_rx_bpdu) {
-            pkt = (MSTP_RX_PDU *)pmsg->msg;
-            /***********************************************************
-             * Packet has arrived through interface socket.
-             ************************************************************/
-            VLOG_DBG("%s : MSTP BPDU Packet arrived from interface socket",
-                   __FUNCTION__);
-            if(MSTP_ENABLED)
-            {
-                MSTP_PKT_TYPE_t pktType;
-                pktType = mstp_decodeBpdu(pkt);
-                VLOG_DBG("%d : MSTP BPDU Packet arrived from interface socket", pktType);
-                switch (pktType) {
-                    case MSTP_UNAUTHORIZED_BPDU_DATA_PKT:
-                        mstp_processUnauthorizedBpdu(pkt, BPDU_PROTECTION);
-                        break;
-
-                    case MSTP_ERRANT_PROTOCOL_DATA_PKT:
-                        mstp_errantProtocolData(pkt, BPDU_FILTER);
-                        break;
-
-                    case MSTP_PROTOCOL_DATA_PKT:
-                        mstp_protocolData(pkt);
-                        informDB = FALSE; /*Call already made in mstp_protocolData*/
-                        break;
-
-                    case MSTP_INVALID_PKT:
-                        break;
-
-                    default:
-                        STP_ASSERT(0);
-                        break;
-                }
-            }
-            //TODO
-        } else {
-            /***********************************************************
-             * Unknown/unregistered sender.
-             ************************************************************/
-            VLOG_ERR("%s : message from unknown sender",
+                break;
+            default:
+                VLOG_ERR("%s : message from unknown sender",
                      __FUNCTION__);
         }
+
         if (informDB) {
             mstp_informDBOnPortStateChange(pmsg->msg_type);
         }

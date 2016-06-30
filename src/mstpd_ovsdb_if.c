@@ -2676,7 +2676,7 @@ util_add_default_ports_to_mist() {
 
 
             /* FILL the default values for CIST_port entry */
-            if (!strcmp(bridge_row->ports[i]->admin,OVSREC_PORT_ADMIN_UP)) {
+            if (intf_get_link_state(bridge_row->ports[i]) == true) {
                 ovsrec_mstp_instance_port_set_port_state( mstp_port_row,
                         MSTP_STATE_FORWARD);
             }
@@ -2813,7 +2813,7 @@ util_add_default_ports_to_cist() {
         /* FILL the default values for CIST_port entry */
         ovsrec_mstp_common_instance_port_set_port( cist_port_row,
                 bridge_row->ports[i]);
-        if (!strcmp(bridge_row->ports[i]->admin,OVSREC_PORT_ADMIN_UP)) {
+        if (intf_get_link_state(bridge_row->ports[i]) == true) {
             ovsrec_mstp_common_instance_port_set_port_state( cist_port_row,
                     MSTP_STATE_FORWARD);
         }
@@ -2903,7 +2903,7 @@ util_mstp_instance_status_clean(time_t curr_time, const struct ovsrec_system *sy
                 assert(0);
                 return;
             }
-            if (!strcmp(mstp_port_row->port->admin,OVSREC_PORT_ADMIN_UP))
+            if (intf_get_link_state(mstp_port_row->port) == true)
             {
                 ovsrec_mstp_instance_port_set_port_state( mstp_port_row, MSTP_STATE_FORWARD);
             }
@@ -2980,7 +2980,7 @@ util_mstp_common_instance_status_clean(time_t curr_time, const struct ovsrec_sys
     /* MSTP common instance port clean */
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl) {
         ovsrec_mstp_common_instance_port_set_port_role(cist_port_row, MSTP_ROLE_DISABLE);
-        if (!strcmp(cist_port_row->port->admin,OVSREC_PORT_ADMIN_UP))
+        if (intf_get_link_state(cist_port_row->port) == true)
         {
             ovsrec_mstp_common_instance_port_set_port_state(cist_port_row, MSTP_STATE_FORWARD);
         }
@@ -4286,4 +4286,43 @@ void mstp_util_cist_flush_mac_address(const char *port_name)
     /*flush mac address one (port, vlan_set) */
     ovsrec_port_set_macs_invalid_on_vlans(cist_port_row->port,
                                           cist_row->vlans, cist_row->n_vlans);
+}
+
+bool intf_get_link_state(const struct ovsrec_port *prow)
+{
+    bool retval = false;
+    const struct ovsrec_interface *ifrow;
+    const char *link_state = NULL;
+
+    if(!prow) {
+        return retval;
+    }
+
+    if (!VERIFY_LAG_IFNAME(prow->name)) {
+        link_state = smap_get(&prow->bond_status, PORT_BOND_STATUS_UP);
+        if (link_state) {
+            if (!(strncmp(link_state, PORT_BOND_STATUS_ENABLED_TRUE,strlen(link_state)))) {
+                retval = true;
+            }
+        }
+    } else if (prow->n_interfaces == 1) {
+        ifrow = prow->interfaces[0];
+        if (!ifrow) {
+            retval = false;
+        } else {
+            if (ifrow->link_state)
+            {
+                if (strncmp(ifrow->link_state,OVSREC_INTERFACE_LINK_STATE_UP,
+                            strlen(ifrow->link_state))!=0) {
+                    retval = false;
+                } else {
+                    retval = true;
+                }
+            }
+        }
+    } else {
+        retval = false;
+    }
+
+    return retval;
 }

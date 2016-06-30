@@ -265,4 +265,5 @@ void disable_logical_port(int lport);
 void enable_logical_port(int lport);
 void enable_or_disable_port(int lport,bool enable);
 bool mstpd_is_valid_port_row(const struct ovsrec_port *prow);
+bool intf_get_link_state(const struct ovsrec_port *port_row);
 #endif /* __MSTP_OVSDB_IF__H__ */
