@@ -5507,8 +5507,8 @@ mstp_updtRolesCist(void)
    {
       /* If there is a change in the root times, inform this to standby */
       mstp_updtMstiRootInfoChg(MSTP_CISTID);
-      mstp_util_set_cist_table_value(REMAINING_HOPS, MSTP_CIST_ROOT_TIMES.hops);
    }
+   mstp_util_set_cist_table_value(REMAINING_HOPS, MSTP_CIST_ROOT_TIMES.hops);
    /*-------------------------------------------------------------------------
     * After calculation of the Bridge's Root Priority Vector and Root Times
     * we have to do the following:
@@ -6045,8 +6045,8 @@ mstp_updtRolesMsti(MSTID_t mstid)
    if(rootTimeChange)
    {
       mstp_updtMstiRootInfoChg(mstid);
-      mstp_util_set_msti_table_value(REMAINING_HOPS, MSTP_MSTI_ROOT_TIMES(mstid).hops, mstid);
    }
+   mstp_util_set_msti_table_value(REMAINING_HOPS, MSTP_MSTI_ROOT_TIMES(mstid).hops, mstid);
 
    /*-------------------------------------------------------------------------
     * After calculation of the Bridge's Root Priority Vector and Root Times
