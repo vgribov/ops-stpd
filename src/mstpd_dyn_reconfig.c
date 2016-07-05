@@ -372,6 +372,7 @@ void mstp_updatePortStateToForward()
     const struct ovsrec_mstp_instance_port *mstp_port_row = NULL;
     int mstid = 0, port_id = 0;
     bridge_row = ovsrec_bridge_first(idl);
+    MSTP_OVSDB_LOCK;
     txn = ovsdb_idl_txn_create(idl);
     OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port_row, idl)
     {
@@ -381,6 +382,9 @@ void mstp_updatePortStateToForward()
         mstp_row = bridge_row->value_mstp_instances[mstid];
         if(!mstp_row) {
             assert(0);
+            ovsdb_idl_txn_destroy(txn);
+            MSTP_OVSDB_UNLOCK;
+
             return;
         }
 
@@ -389,6 +393,8 @@ void mstp_updatePortStateToForward()
             mstp_port_row = mstp_row->mstp_instance_ports[port_id];
             if(!mstp_port_row) {
                 assert(0);
+                ovsdb_idl_txn_destroy(txn);
+                MSTP_OVSDB_UNLOCK;
                 return;
             }
             ovsrec_mstp_instance_port_set_port_state( mstp_port_row, MSTP_STATE_FORWARD);
@@ -396,6 +402,7 @@ void mstp_updatePortStateToForward()
     }
     ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
+    MSTP_OVSDB_UNLOCK;
     return;
 }
 
