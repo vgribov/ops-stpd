@@ -62,6 +62,7 @@ int mstpd_shutdown = 0;
 
 PORT_MAP l2ports;
 PORT_MAP ports_up;
+PORT_MAP temp_l2ports;
 bool mstp_enable = false;
 
 /* Message Queue for MSTPD main protocol thread */
@@ -422,6 +423,7 @@ mstpd_protocol_thread(void *arg)
     pthread_detach(pthread_self());
     clear_port_map(&ports_up);
     clear_port_map(&l2ports);
+    clear_port_map(&temp_l2ports);
     mstp_Bridge.ForceVersion = MSTP_PROTOCOL_VERSION_ID_MST;
     mstpInitialInit();
 
@@ -503,14 +505,23 @@ mstpd_protocol_thread(void *arg)
                 update_mstp_on_lport_add(lport);
                 if (MSTP_ENABLED)
                 {
-                    register_stp_mcast_addr(lport);
-                    mstp_addLport(lport);
-                    if(!is_lport_down(lport))
+                    /*trying to register a socket*/
+                    if (register_stp_mcast_addr(lport) != -1)
                     {
-                        SPEED_DPLX    ports_cfg = {0};
-                        intf_get_lport_speed_duplex(lport,&ports_cfg);
-                        mstp_portAutoDetectParamsSet(lport, &ports_cfg);
-                        mstp_portEnable(lport);
+                        mstp_addLport(lport);
+                        if(!is_lport_down(lport))
+                        {
+                            SPEED_DPLX    ports_cfg = {0};
+                            intf_get_lport_speed_duplex(lport,&ports_cfg);
+                            mstp_portAutoDetectParamsSet(lport, &ports_cfg);
+                            mstp_portEnable(lport);
+                        }
+                    }
+                    else
+                    {
+                        /* Unable to register a socket, making a note of the port so that
+                         * we can try to re-attempt in timer tick operation*/
+                        set_port(&temp_l2ports,lport);
                     }
                 }
                 break;
@@ -604,7 +615,20 @@ mstpd_protocol_thread(void *arg)
                             port > 0 && port <= MAX_LPORTS;
                             port = find_next_port_set(&l2ports, port))
                     {
-                        register_stp_mcast_addr(port);
+                        /*Trying to register a socket*/
+                        if(register_stp_mcast_addr(port) != -1)
+                        {
+                            if(is_port_set(&temp_l2ports,port))
+                            {
+                                clear_port(&temp_l2ports,port);
+                            }
+                        }
+                        else
+                        {
+                            /*Unable to register a socket, making a note of the port so that
+                             * we can try to re-attempt in timer tick operation*/
+                            set_port(&temp_l2ports,port);
+                        }
                     }
                 }
                 else
@@ -625,6 +649,28 @@ mstpd_protocol_thread(void *arg)
                 /***********************************************************
                  * Msg from MSTP timers.
                  ***********************************************************/
+                if (MSTP_ENABLED && are_any_ports_set(&temp_l2ports))
+                {
+                    uint16_t lport = 0;
+                    for (lport = find_first_port_set(&temp_l2ports);
+                            lport > 0 && lport <= MAX_LPORTS;
+                            lport = find_next_port_set(&temp_l2ports, lport))
+                    {
+                        /* Try to register a socket, clear the port if successful*/
+                        if (register_stp_mcast_addr(lport) != -1)
+                        {
+                            mstp_addLport(lport);
+                            if(!is_lport_down(lport))
+                            {
+                                SPEED_DPLX    ports_cfg = {0};
+                                intf_get_lport_speed_duplex(lport,&ports_cfg);
+                                mstp_portAutoDetectParamsSet(lport, &ports_cfg);
+                                mstp_portEnable(lport);
+                            }
+                            clear_port(&temp_l2ports,lport);
+                        }
+                    }
+                }
                 if(MSTP_ENABLED)
                 {
                     mstp_processTimerTickEvent();
@@ -780,6 +826,15 @@ mstp_processTimerTickEvent()
       commPortPtr = MSTP_COMM_PORT_PTR(lport);
       if(commPortPtr)
       {
+         /*We should not be proceeding for timer tick state machine
+          * when interface is not registered for socket,
+          * which means interface is not ready at this point of time.*/
+         if(is_port_set(&temp_l2ports,lport))
+         {
+             VLOG_INFO("Skipping Timer State machine since interface: %d failed to register a socket",lport);
+             continue;
+         }
+
         /*--------------------------------------------------------------------
          * Check for pending STP Traps to be sent out
          *-------------------------------------------------------------------*/
@@ -1666,7 +1721,7 @@ void delete_mstp_msti_config(mstpd_message *pmsg)
 {
     struct mstp_msti_config_delete *msti_config_delete = NULL;
     int mstid = 0,lport = 0;
-    msti_config_delete = (mstp_msti_config_delete *)&pmsg->msg;
+    msti_config_delete = (mstp_msti_config_delete *)pmsg->msg;
     mstid = msti_config_delete->mstid;
     MSTP_TREE_MSG_t *m;
 

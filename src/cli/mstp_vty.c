@@ -52,6 +52,36 @@ const struct shash_node **sort_interface(const struct shash *sh);
 VLOG_DEFINE_THIS_MODULE(vtysh_mstp_cli);
 
 /*-----------------------------------------------------------------------------
+ | Function:        mstp_validateStrVlanNumber
+ | Responsibility:  validates if VLAN number has all digits
+ | Parameters:
+ |      vlanStr:  VLAN ID entered by user
+ | Return:
+ ------------------------------------------------------------------------------
+ */
+bool
+mstp_validateStrVlanNumber(const char *vlanStr)
+{
+    bool allDigits = TRUE;
+    int   i, len;
+    if (!vlanStr)
+    {
+        return FALSE;
+    }
+
+    for(i=0,len=strlen(vlanStr); i < len; i++)
+    {
+        if(!isdigit((int)vlanStr[i]))
+        {
+            allDigits = FALSE;
+            break;
+        }
+    }
+    return allDigits;
+}
+
+
+/*-----------------------------------------------------------------------------
  | Function:        mstp_print_port_statistics
  | Responsibility:  Displays port statistics
  | Parameters:
@@ -1621,7 +1651,18 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
     int64_t mstp_old_inst_id = 0, *instId_list = NULL;
     int i = 0, j = 0, k = 0;
 
-    int vlan_id =(vlanid)? atoi(vlanid):MSTP_INVALID_ID;
+    int64_t vlan_id = MSTP_INVALID_ID;
+    if (vlanid)
+    {
+        if (mstp_validateStrVlanNumber(vlanid))
+        {
+            vlan_id = (vlanid)? atoi(vlanid):MSTP_INVALID_ID;
+        }
+        else
+        {
+            ERRONEOUS_DB_TXN(txn, "Invalid VLAN ID");
+        }
+    }
 
     START_DB_TXN(txn);
     if (!MSTP_VALID_MSTID(instid)) {
@@ -1789,8 +1830,15 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
     int64_t port_priority = DEF_MSTP_PORT_PRIORITY;
     int64_t priority = DEF_BRIDGE_PRIORITY;
     int64_t admin_path_cost = DEF_MSTP_COST;
-
-    int vlan_id =(vlanid)? atoi(vlanid):MSTP_INVALID_ID;
+    int64_t vlan_id = 0;
+    if (mstp_validateStrVlanNumber(vlanid))
+    {
+        vlan_id = (vlanid)? atoi(vlanid):MSTP_INVALID_ID;
+    }
+    else
+    {
+        ERRONEOUS_DB_TXN(txn, "Invalid VLAN ID");
+    }
 
     START_DB_TXN(txn);
     if (!MSTP_VALID_MSTID(instid)) {

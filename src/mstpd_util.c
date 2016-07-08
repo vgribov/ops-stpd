@@ -1482,7 +1482,6 @@ mstp_buildMstConfigurationDigest(uint8_t *resDigest)
    const struct ovsrec_bridge *bridge_row = NULL;
    struct ovsdb_idl_txn *txn = NULL;
    struct smap smap = SMAP_INITIALIZER(&smap);
-   STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(resDigest);
    STP_ASSERT(MSTP_DIGEST_SIZE == 16);
    MSTP_OVSDB_LOCK;
@@ -7078,7 +7077,6 @@ mstp_getMstIdForVid(VID_t vid)
    MSTID_t mstid = MSTP_NO_MSTID;
    MSTID_t tmpMstid;
 
-   STP_ASSERT(MSTP_ENABLED);
    STP_ASSERT(IS_VALID_VID(vid));
 
 
