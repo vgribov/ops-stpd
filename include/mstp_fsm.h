@@ -137,6 +137,7 @@
 #define ENET_HDR_SIZ      14
 #define ENET_CRC_LEN       4
 #define ETHERMIN (ENET_MIN_PKT_SIZE - ENET_HDR_SIZ - ENET_CRC_LEN)  /* 46 */
+#define MSTP_MAC_STR_LEN 18
 
 #define PRINT_MAC_ADDR(a)       \
         *((u_char *)(a)),   *((u_char *)(a)+1), *((u_char *)(a)+2), \
@@ -647,8 +648,13 @@ bool isMstp64Instance(void);
 #define MSTP_DEBUG
 #endif
 
+#ifndef TRUE
 #define TRUE true
+#endif
+
+#ifndef FALSE
 #define FALSE false
+#endif
 
 #define STP_PATH_COST_ETHERNET   100
 #define STP_PATH_COST_100MB      10
@@ -2396,8 +2402,7 @@ typedef uint8_t MSTP_TCM_STATE_t;
  *---------------------------------------------------------------------------*/
 typedef enum
 {
-   path_cost_invalid   = -1, /* on bttf compiler needs to be made to pick
-                              * signed type for this enum                    */
+   path_cost_invalid   = -1,
    path_cost_8021d     = 1,
    path_cost_8021t     = 2,
    path_cost_prop      = 3

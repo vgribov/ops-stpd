@@ -757,7 +757,6 @@ mstp_clearBridgeMstiData(MSTID_t mstid) {
 void
 mstp_clearProtocolData(void)
 {
-    STP_ASSERT(MSTP_ENABLED);
     /*------------------------------------------------------------------------
      * clear the CIST and the MSTIs data
      *------------------------------------------------------------------------*/
@@ -949,8 +948,6 @@ mstp_clearBridgeGlobalData(void)
 {
    LPORT_t lport;
 
-   STP_ASSERT(MSTP_ENABLED);
-
    /*------------------------------------------------------------------------
     * Clear MSTP common port data (used by both CIST and MSTIs)
     *------------------------------------------------------------------------*/
@@ -1038,7 +1035,7 @@ mstp_initBridgeMstiData(int mstid,bool init)
 {
    MSTP_MSTI_BRIDGE_PRI_VECTOR_t *pri_vec;
    MSTP_BRIDGE_IDENTIFIER_t       mstiRootID;
-   const char *my_mac = NULL;
+   const char my_mac[MSTP_MAC_STR_LEN] = {0};
    MAC_ADDRESS mac;
 
    STP_ASSERT(MSTP_ENABLED);
@@ -1061,9 +1058,9 @@ mstp_initBridgeMstiData(int mstid,bool init)
     *------------------------------------------------------------------------*/
    MSTP_SET_BRIDGE_SYS_ID(MSTP_MSTI_BRIDGE_IDENTIFIER(mstid), mstid);
     /* get the mac address for the port */
-   my_mac = system_get_mac_addr();
-   sscanf(my_mac,"%02x:%02x:%02x:%02x:%02x:%02x",(unsigned int *)&mac[0],(unsigned int *)&mac[1],(unsigned int *)&mac[2],
-           (unsigned int *)&mac[3],(unsigned int *)&mac[4],(unsigned int *)&mac[5]);
+   system_get_mac_addr(my_mac);
+   sscanf(my_mac, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+
    MAC_ADDR_COPY(&mac, MSTP_MSTI_BRIDGE_IDENTIFIER(mstid).mac_address);
 
 
@@ -1214,7 +1211,7 @@ mstp_initBridgeCistData(bool init)
    MSTP_CIST_BRIDGE_PRI_VECTOR_t *pri_vec;
    MSTP_BRIDGE_IDENTIFIER_t       cstRootID;
    MSTP_BRIDGE_IDENTIFIER_t       istRootID;
-   const char *my_mac = NULL;
+   const char my_mac[MSTP_MAC_STR_LEN] = {0};
    MAC_ADDRESS mac;
 
    STP_ASSERT(MSTP_ENABLED);
@@ -1232,9 +1229,9 @@ mstp_initBridgeCistData(bool init)
     *       2). It updates 'mstp_MstiVidTable' with VLANs mapped to the CIST.
     *------------------------------------------------------------------------*/
    MSTP_SET_BRIDGE_SYS_ID(MSTP_CIST_BRIDGE_IDENTIFIER, MSTP_CISTID);
-   my_mac = system_get_mac_addr();
-   sscanf(my_mac,"%02x:%02x:%02x:%02x:%02x:%02x",(unsigned int *)&mac[0],(unsigned int *)&mac[1],(unsigned int *)&mac[2],
-           (unsigned int *)&mac[3],(unsigned int *)&mac[4],(unsigned int *)&mac[5]);
+   system_get_mac_addr(my_mac);
+   sscanf(my_mac,"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]);
+
    MAC_ADDR_COPY(&mac,
                  MSTP_CIST_BRIDGE_IDENTIFIER.mac_address);
 

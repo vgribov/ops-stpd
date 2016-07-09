@@ -928,7 +928,7 @@ mstp_tcmSmDetectedAct(MSTID_t mstid, LPORT_t lport)
 
    STP_ASSERT(MSTP_BEGIN == FALSE);
    STP_ASSERT(commPortPtr);
-
+   VLOG_DBG("MSTP TCM Detected");
    mstp_newTcWhile(mstid, lport);
    mstp_setTcPropTree(mstid, lport);
    if(mstid == MSTP_CISTID)
@@ -991,6 +991,7 @@ mstp_tcmSmNotifiedTcnAct(MSTID_t mstid, LPORT_t lport)
           MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,MSTP_PORT_RCVD_TCN) :
           !MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap,MSTP_PORT_RCVD_TCN));
 
+   VLOG_DBG("MSTP TCM Notified");
    mstp_newTcWhile(mstid, lport);
 }
 
@@ -1084,6 +1085,7 @@ mstp_tcmSmPropagatingAct(MSTID_t mstid, LPORT_t lport)
    STP_ASSERT(MSTP_BEGIN == FALSE);
    STP_ASSERT(commPortPtr);
 
+   VLOG_DBG("MSTP TCM Propagating");
    mstp_newTcWhile(mstid, lport);
    if(!MSTP_COMM_PORT_IS_BIT_SET(commPortPtr->bitMap, MSTP_PORT_OPER_EDGE))
    {/* do MAC Address flushing on 'nonEdge' port only */

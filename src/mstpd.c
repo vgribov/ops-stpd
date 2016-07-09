@@ -44,7 +44,8 @@
 #include <command-line.h>
 #include <vswitch-idl.h>
 #include <openvswitch/vlog.h>
-
+#include <diag_dump.h>
+#include <eventlog.h>
 
 #include "mstp.h"
 #include "mstp_ovsdb_if.h"
@@ -77,6 +78,77 @@ mstpd_timerHandler(void)
 } /* mstpd_timerHandler */
 
 /**
+ * callback handler function for diagnostic dump basic
+ * INIT_DIAG_DUMP_BASIC will free allocated memory.
+ */
+static void
+mstpd_diag_dump_basic_cb(const char *feature , char **buf)
+{
+    struct ds ds = DS_EMPTY_INITIALIZER;
+    int argc = 2, i = 0, j = 0;
+    const struct ovsrec_mstp_common_instance_port *cist_port = NULL;
+    const struct ovsrec_mstp_instance *mstp_row = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    const char *argv[3] = {0};
+    char inst_id[2] = {0};
+
+    if((!feature) || (!buf)) {
+        VLOG_ERR("Invalid Input %s: %d\n", __FILE__, __LINE__ );
+        return;
+    }
+
+    bridge_row = ovsrec_bridge_first(idl);
+    if (!bridge_row) {
+        VLOG_ERR("No record found %s: %d\n", __FILE__, __LINE__ );
+        return;
+    }
+
+    /* populate basic diagnostic data to buffer */
+    /* Populate CIST Data */
+    mstpd_cist_data_dump(&ds, argc, argv);
+    mstpd_daemon_cist_data_dump(&ds, argc, argv);
+
+    /* Populate CIST port data*/
+    OVSREC_MSTP_COMMON_INSTANCE_PORT_FOR_EACH(cist_port, idl) {
+        memset(argv, 0, sizeof(argv));
+        argv[1] = cist_port->port->name;
+        mstpd_cist_port_data_dump(&ds, argc, argv);
+        mstpd_daemon_cist_port_data_dump(&ds, argc, argv);
+    }
+
+    /* Populate MSTI data*/
+    for (i=0; i < bridge_row->n_mstp_instances; i++) {
+        memset(argv, 0, sizeof(argv));
+        memset(inst_id, 0, sizeof(inst_id));
+        snprintf(inst_id, sizeof(inst_id), "%ld", bridge_row->key_mstp_instances[i]);
+        mstp_row = bridge_row->value_mstp_instances[i];
+        if(!mstp_row) {
+            VLOG_ERR("No MSTP Record found %s: %d",__FILE__, __LINE__);
+            assert(0);
+        }
+        argv[1] = inst_id;
+        mstpd_msti_data_dump(&ds, argc, argv);
+        mstpd_daemon_msti_data_dump(&ds, argc, argv);
+
+        /* Populate MSTI port data*/
+        for (j=0; j < mstp_row->n_mstp_instance_ports; j++) {
+            if(!mstp_row->mstp_instance_ports[j]) {
+                VLOG_ERR("No MSTP Port Record found %s: %d",__FILE__, __LINE__);
+                assert(0);
+            }
+
+            argv[2] = mstp_row->mstp_instance_ports[j]->port->name;
+            mstpd_msti_port_data_dump(&ds, argc, argv);
+            mstpd_daemon_msti_port_data_dump(&ds, argc, argv);
+        }
+    }
+
+    *buf = ds.string;
+    VLOG_DBG("basic diag-dump data populated for feature %s",
+            feature);
+}
+
+/**
  * mstpd daemon's main initialization function.  Responsible for
  * creating various protocol & OVSDB interface threads.
  *
@@ -86,6 +158,7 @@ static void
 mstpd_init(const char *db_path, struct unixctl_server *appctl)
 {
     int rc;
+    int retval;
     sigset_t sigset;
     pthread_t ovs_if_thread;
     pthread_t mstpd_thread;
@@ -121,6 +194,13 @@ mstpd_init(const char *db_path, struct unixctl_server *appctl)
     unixctl_command_register("mstpd/daemon/mstp_debug_sm", "", 2, 2, mstpd_daemon_debug_sm_unixctl_list, NULL);
     unixctl_command_register("mstpd/daemon/mstp_digest", "", 0, 0, mstpd_daemon_digest_unixctl_list, NULL);
     unixctl_command_register("mstpd/daemon/intf_to_mstp_map", "", 0, 1, mstpd_daemon_intf_to_mstp_map_unixctl_list, NULL);
+
+    INIT_DIAG_DUMP_BASIC(mstpd_diag_dump_basic_cb);
+
+    retval = event_log_init("MSTP");
+        if(retval < 0) {
+            VLOG_ERR("Event log initialization failed");
+    }
 
     /* Spawn off the OVSDB interface thread. */
     rc = pthread_create(&ovs_if_thread,
