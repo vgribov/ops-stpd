@@ -23,6 +23,7 @@
 #include "vtysh/vty.h"
 #include "vtysh/command.h"
 #include "vtysh/vtysh.h"
+#include <openswitch-idl.h>
 
 extern struct ovsdb_idl *idl;
 #define MAX_VID_STR_LEN 10 /* length of "xxxx-xxxx" + '\0' */
@@ -34,6 +35,11 @@ extern struct ovsdb_idl *idl;
 #define MSTP_VALID_MSTID(mstid) \
     (((mstid) >= MSTP_MSTID_MIN) && ((mstid) <= MSTP_MSTID_MAX))
 
+#define MEGA_BITS_PER_SEC  1000000
+#define INTF_TO_MSTP_LINK_SPEED(s)    ((s)/MEGA_BITS_PER_SEC)
+#define VERIFY_LAG_IFNAME(s) strncasecmp(s, "lag", 3)
+
+#define DEF_LINK_SPEED                20000
 /**PROC+**********************************************************************
 * Name:      print_vidmap_multiline
 *
@@ -200,5 +206,65 @@ print_vid_for_instance(int inst_id) {
             set_vid(&vidMap, mstp_row->vlans[vid]->id);
         }
         print_vidmap_multiline(&vidMap, MAX_LINE_LEN, MAX_INDENT);
+    }
+}
+
+int64_t
+get_intf_link_cost(struct ovsrec_port *port) {
+
+    int64_t link_speed = 0;
+    const char *bond_status = NULL;
+    if(!port) {
+        vty_out(vty, "Invalid Input%s:%d%s", __FILE__, __LINE__, VTY_NEWLINE);
+        return DEF_LINK_SPEED;
+    }
+
+    /* validation for non lag interfaces */
+    if(VERIFY_LAG_IFNAME(port->name)) {
+        if(!(port->interfaces) && !(port->interfaces[0]->link_speed)) {
+            vty_out(vty, "Invalid Input%s:%d%s", __FILE__, __LINE__, VTY_NEWLINE);
+            return DEF_LINK_SPEED;
+        }
+    }
+
+    /* Get link speed from bond_status for lag interfaces */
+    if(!VERIFY_LAG_IFNAME(port->name)) {
+        bond_status = smap_get(&port->bond_status, PORT_BOND_STATUS_MAP_BOND_SPEED);
+        if (bond_status) {
+            /* There should only be one speed. */
+            link_speed = INTF_TO_MSTP_LINK_SPEED(atoi(bond_status));
+        }
+    }
+    /* Link speed for normal interfaces*/
+    else {
+        link_speed = INTF_TO_MSTP_LINK_SPEED(port->interfaces[0]->link_speed[0]);
+    }
+
+    switch(link_speed)
+    {
+        case SPEED_10MB:
+            return MSTP_PORT_PATH_COST_ETHERNET;
+            break;
+        case SPEED_100MB:
+            return MSTP_PORT_PATH_COST_100MB;
+            break;
+        case SPEED_1000MB:
+            return MSTP_PORT_PATH_COST_1000MB;
+            break;
+        case SPEED_2500MB:
+            return MSTP_PORT_PATH_COST_2500MB;
+            break;
+        case SPEED_5000MB:
+            return MSTP_PORT_PATH_COST_5000MB;
+            break;
+        case SPEED_10000MB:
+            return MSTP_PORT_PATH_COST_10000MB;
+            break;
+        case SPEED_40000MB:
+            return MSTP_PORT_PATH_COST_40000MB;
+            break;
+        default:
+            //STP_ASSERT(0);
+            return DEF_LINK_SPEED;
     }
 }

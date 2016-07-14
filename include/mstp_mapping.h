@@ -43,6 +43,27 @@ typedef uint8_t OCTET;
 #define PRIORITY_MULTIPLIER 4096
 #define PORT_PRIORITY_MULTIPLIER 16
 
+/*---------------------------------------------------------------------------
+ * Default values used in configuration file,
+ * values are defined in IEEE P802.1w Table 17-6
+ *
+ * IEEE 802.1t-2001 standard uses the computation 20,000,000/port speed in Mbps
+ *
+ * E.g for 40G, port speed in Mbps is 40000
+ *
+ * path cost for 40G = 20,000,000/40,000
+ *                   = 500
+ *---------------------------------------------------------------------------*/
+#define MSTP_PORT_PATH_COST_ETHERNET   2000000
+#define MSTP_PORT_PATH_COST_100MB      200000
+#define MSTP_PORT_PATH_COST_1000MB     20000
+#define MSTP_PORT_PATH_COST_2500MB     8000
+#define MSTP_PORT_PATH_COST_5000MB     4000
+#define MSTP_PORT_PATH_COST_10000MB    2000
+#define MSTP_PORT_PATH_COST_40000MB    500
+#define MSTP_PORT_PATH_COST_AUTO       0 /* Indicates that switch determines
+                                          * the path cost dynamically (auto) */
+
 #define IS_VALID_LPORT(lport) ((lport >= 1) && (lport <= MAX_LPORTS))
 #define INTERNAL_VID (0x0fff) /* 4095 */
 

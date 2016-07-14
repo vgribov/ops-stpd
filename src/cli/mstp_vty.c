@@ -46,6 +46,10 @@
 #include "vtysh_ovsdb_mstp_context.h"
 #include "ops-utils.h"
 
+/* LAG Port Name prefix */
+#define LAG_PORT_NAME_PREFIX "lag"
+#define LAG_PORT_NAME_PREFIX_LENGTH (3)
+
 extern struct ovsdb_idl *idl;
 const struct shash_node **sort_interface(const struct shash *sh);
 
@@ -406,7 +410,7 @@ cli_show_spanning_tree_config(bool detail) {
         cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
         vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role, cist_port->port_state,
-                (cist_port->cist_path_cost)?(*cist_port->cist_path_cost):0,
+                (*cist_port->admin_path_cost != DEF_MSTP_COST)?*cist_port->admin_path_cost:get_intf_link_cost(cist_port->port),
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                 cist_port->link_type, VTY_NEWLINE);
     }
@@ -581,7 +585,7 @@ mstp_show_common_instance_info(
         vty_out(vty, "%-14s %-14s %-10s %-10ld %-10ld %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state,
-                (cist_port->cist_path_cost)?*cist_port->cist_path_cost:0,
+                (*cist_port->admin_path_cost != DEF_MSTP_COST)?*cist_port->admin_path_cost:get_intf_link_cost(cist_port->port),
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                 cist_port->link_type, VTY_NEWLINE);
     }
@@ -733,7 +737,7 @@ mstp_show_instance_info(int64_t inst_id, const struct ovsrec_mstp_instance *mstp
             vty_out(vty, "%-14s %-14s %-10s %-7ld %-10ld %s%s",
                     mstp_port->port->name, mstp_port->port_role,
                     mstp_port->port_state,
-                    (mstp_port->admin_path_cost)?*mstp_port->admin_path_cost:DEF_MSTP_COST,
+                    (*mstp_port->admin_path_cost != DEF_MSTP_COST)?*mstp_port->admin_path_cost:get_intf_link_cost(mstp_port->port),
                     ((*mstp_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
                     DEF_LINK_TYPE, VTY_NEWLINE);
         }
@@ -858,13 +862,13 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
         if(inst_id != MSTP_CISTID) {
             vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
                     mstp_port_row->port_role, mstp_port_row->port_state,
-                    (mstp_port_row->admin_path_cost)?*mstp_port_row->admin_path_cost:DEF_MSTP_COST,
+                    (*mstp_port_row->admin_path_cost != DEF_MSTP_COST)?*mstp_port_row->admin_path_cost:get_intf_link_cost(mstp_port_row->port),
                     ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
         }
         else{
             vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
                 cist_port->port_role, cist_port->port_state,
-                *cist_port->cist_path_cost,
+                (*cist_port->admin_path_cost != DEF_MSTP_COST)?*cist_port->admin_path_cost:get_intf_link_cost(cist_port->port),
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
         }
 
@@ -1112,6 +1116,7 @@ cli_show_mstp_intf_config() {
     bool if_print = true;
     struct shash sorted_port_id;
     const struct shash_node **cist_port_nodes = NULL;
+    char intf_name[20] = {0};
 
     bridge_row = ovsrec_bridge_first(idl);
     if (!bridge_row) {
@@ -1151,12 +1156,20 @@ cli_show_mstp_intf_config() {
             return e_vtysh_error;
         }
         if_print = true;
+        memset(intf_name, 0, sizeof(intf_name));
+
+        if(strncmp(cist_port_row->port->name, LAG_PORT_NAME_PREFIX, LAG_PORT_NAME_PREFIX_LENGTH) == 0) {
+             sprintf(intf_name, "interface lag %d",
+                     atoi(&cist_port_row->port->name[LAG_PORT_NAME_PREFIX_LENGTH]));
+        }
+        else {
+             sprintf(intf_name, "interface %s", cist_port_row->port->name);
+        }
 
         if (cist_port_row->loop_guard_disable &&
                 *cist_port_row->loop_guard_disable != DEF_BPDU_STATUS) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty,  "%4s%s%s", "", "spanning-tree loop-guard enable",
@@ -1165,8 +1178,7 @@ cli_show_mstp_intf_config() {
         if (cist_port_row->root_guard_disable &&
                 *cist_port_row->root_guard_disable != DEF_BPDU_STATUS) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty, "%4s%s%s", "", "spanning-tree root-guard enable",
@@ -1175,8 +1187,7 @@ cli_show_mstp_intf_config() {
         if (cist_port_row->bpdu_guard_disable &&
                 *cist_port_row->bpdu_guard_disable != DEF_BPDU_STATUS) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty, "%4s%s%s", "", "spanning-tree bpdu-guard enable",
@@ -1185,8 +1196,7 @@ cli_show_mstp_intf_config() {
         if (cist_port_row->bpdu_filter_disable &&
                 *cist_port_row->bpdu_filter_disable != DEF_BPDU_STATUS) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty, "%4s%s%s", "", "spanning-tree bpdu-filter enable",
@@ -1195,8 +1205,7 @@ cli_show_mstp_intf_config() {
         if (cist_port_row->admin_edge_port_disable &&
                 *cist_port_row->admin_edge_port_disable != DEF_ADMIN_EDGE) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty, "%4s%s%s", "", "spanning-tree port-type admin-edge",
@@ -1205,8 +1214,7 @@ cli_show_mstp_intf_config() {
         if (cist_port_row->admin_path_cost &&
                 *cist_port_row->admin_path_cost != DEF_MSTP_COST) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty, "%4s%s %ld%s", "", "spanning-tree cost",
@@ -1215,8 +1223,7 @@ cli_show_mstp_intf_config() {
         if (cist_port_row->port_priority &&
                 *cist_port_row->port_priority != DEF_MSTP_PORT_PRIORITY) {
             if (if_print) {
-                vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                                                VTY_NEWLINE);
+                vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
             vty_out(vty, "%4s%s %ld%s", "", "spanning-tree port-priority",
@@ -1241,8 +1248,7 @@ cli_show_mstp_intf_config() {
                 if (mstp_port_row->port_priority &&
                         (*mstp_port_row->port_priority != DEF_MSTP_PORT_PRIORITY)) {
                     if (if_print) {
-                        vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                VTY_NEWLINE);
+                        vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                         if_print = false;
                     }
                     vty_out(vty, "%4s%s %ld %s %ld%s", "",
@@ -1253,8 +1259,7 @@ cli_show_mstp_intf_config() {
                 if (mstp_port_row->admin_path_cost &&
                         (*mstp_port_row->admin_path_cost != DEF_MSTP_COST)) {
                     if (if_print) {
-                        vty_out(vty, "%s %s%s", "interface", cist_port_row->port->name,
-                                VTY_NEWLINE);
+                        vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                         if_print = false;
                     }
                     vty_out(vty, "%4s%s %ld %s %ld%s", "",
@@ -2860,6 +2865,13 @@ cli_pre_init() {
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_port_col_oper_edge_port);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_port_col_restricted_port_role_disable);
     ovsdb_idl_add_column(idl, &ovsrec_mstp_common_instance_port_col_port_state);
+
+    ovsdb_idl_add_table(idl, &ovsrec_table_interface);
+    ovsdb_idl_add_table(idl, &ovsrec_table_port);
+    ovsdb_idl_add_column(idl, &ovsrec_interface_col_name);
+    ovsdb_idl_add_column(idl, &ovsrec_interface_col_link_speed);
+    ovsdb_idl_add_column(idl, &ovsrec_port_col_name);
+    ovsdb_idl_add_column(idl, &ovsrec_port_col_bond_status);
 
     retval = install_show_run_config_context(e_vtysh_mstp_context,
                             &vtysh_mstp_context_clientcallback,

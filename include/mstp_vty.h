@@ -135,5 +135,6 @@ typedef enum mstp_flags
 void cli_pre_init(void);
 void cli_post_init(void);
 void print_vid_for_instance(int inst_id);
+uint32_t get_intf_link_cost(struct ovsrec_port *port);
 
 #endif /* _MSTP_VTY_H */
