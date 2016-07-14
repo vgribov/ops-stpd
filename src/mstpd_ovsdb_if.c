@@ -3842,8 +3842,17 @@ void update_port_entry_in_cist_mstp_instances(char *name, int operation){
                 MSTP_ROLE_DISABLE);
         ovsrec_mstp_common_instance_port_set_admin_path_cost( cist_port_add,
                 &admin_path_cost, 1);
-        ovsrec_mstp_common_instance_port_set_port_priority( cist_port_add,
-                &cist_port_priority, 1);
+        if (!VERIFY_LAG_IFNAME(bridge_row->ports[i]->name))
+        {
+            cist_port_priority = DEF_MSTP_PORT_PRIORITY/2;
+            ovsrec_mstp_common_instance_port_set_port_priority( cist_port_add,
+                    &cist_port_priority, 1);
+        }
+        else
+        {
+            ovsrec_mstp_common_instance_port_set_port_priority( cist_port_add,
+                    &cist_port_priority, 1);
+        }
         ovsrec_mstp_common_instance_port_set_link_type( cist_port_add,
                 DEF_LINK_TYPE);
         ovsrec_mstp_common_instance_port_set_port_hello_time( cist_port_add,
@@ -4010,8 +4019,18 @@ void update_port_entry_in_msti_mstp_instances(char *name,int operation) {
                     MSTP_ROLE_DISABLE);
             ovsrec_mstp_instance_port_set_admin_path_cost( msti_port_add,
                     &admin_path_cost, 1);
-            ovsrec_mstp_instance_port_set_port_priority( msti_port_add,
-                    &cist_port_priority, 1);
+
+            if (!VERIFY_LAG_IFNAME(bridge_row->ports[k]->name))
+            {
+                cist_port_priority = DEF_MSTP_PORT_PRIORITY/2;
+                ovsrec_mstp_instance_port_set_port_priority( msti_port_add,
+                        &cist_port_priority, 1);
+            }
+            else
+            {
+                ovsrec_mstp_instance_port_set_port_priority( msti_port_add,
+                        &cist_port_priority, 1);
+            }
             msti_port_info =
                 xcalloc((msti_row->n_mstp_instance_ports + 1),
                         sizeof *msti_row->mstp_instance_ports);
