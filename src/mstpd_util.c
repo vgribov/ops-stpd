@@ -11402,7 +11402,7 @@ void intf_get_port_name(LPORT_t lport, char *port_name)
         idp = find_iface_data_by_index(lport);
         if(idp == NULL)
         {
-            STP_ASSERT(FALSE);
+            return;
         }
         strncpy(port_name,idp->name,10);
     }
