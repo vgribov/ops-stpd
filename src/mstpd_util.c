@@ -5467,6 +5467,7 @@ mstp_updtRolesCist(void)
       mstp_util_set_cist_table_value(OPER_FORWARD_DELAY, mstp_Bridge.FwdDelay);
       mstp_util_set_cist_table_value(OPER_MAX_AGE, mstp_Bridge.MaxAge);
       mstp_util_set_cist_table_value(OPER_TX_HOLD_COUNT, mstp_Bridge.TxHoldCount);
+      mstp_util_set_cist_table_value(ROOT_PATH_COST, (int64_t)0);
       mstp_util_set_cist_table_string(ROOT_PORT,"0");
    }
    else
@@ -5571,9 +5572,6 @@ mstp_updtRolesCist(void)
                  cistPortPtr->designatedPriority.dsnBridgeID.mac_address[5]);
          mstp_util_set_cist_port_table_string(port_name,DESIGNATED_BRIDGE,designatedBridge);
 
-         if(MAC_ADDRS_EQUAL(&cistPortPtr->designatedPriority.rootID, &cistPortPtr->designatedPriority.dsnBridgeID)) {
-             mstp_util_set_cist_port_table_value(port_name, CIST_PATH_COST, (int64_t)0);
-         }
          /*-------------------------------------------------------------------
           * 3). Substitute 'DesignatedPortID' with this Port Identifier
           *------------------------------------------------------------------*/
@@ -6020,6 +6018,7 @@ mstp_updtRolesMsti(MSTID_t mstid)
      * this Bridge's own Priority Vector is the best over all Port's
      * Root Path Priority Vectors */
       MSTP_MSTI_ROOT_TIMES(mstid) = MSTP_MSTI_BRIDGE_TIMES(mstid);
+      mstp_util_set_msti_table_value(ROOT_PATH_COST, (int64_t)0, mstid);
    }
    else
    {/* case 2) from the above */

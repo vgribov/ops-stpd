@@ -553,6 +553,17 @@ mstp_show_common_instance_info(
             (cist_row->tx_hold_count)?*cist_row->tx_hold_count:DEF_HOLD_COUNT,
             VTY_NEWLINE);
 
+    vty_out(vty, "%-14s Address:%-20s Priority:%ld%s", "Root",
+            root_mac,
+            (cist_row->root_priority)?(*cist_row->root_priority):(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
+            VTY_NEWLINE);
+
+    vty_out(vty, "%19s:%s, Cost:%ld, Rem Hops:%ld%s", "Port",
+            (cist_row->root_port)?cist_row->root_port:"0",
+            (cist_row->root_path_cost)?*cist_row->root_path_cost:DEF_MSTP_COST,
+            (cist_row->remaining_hops)?*cist_row->remaining_hops:(int64_t)0,
+            VTY_NEWLINE);
+
     vty_out(vty, "%s%-14s %-14s %-10s %-10s %-10s %s%s", VTY_NEWLINE,
             "Port", "Role", "State", "Cost", "Priority", "Type", VTY_NEWLINE);
     vty_out(vty, "%s %s%s",

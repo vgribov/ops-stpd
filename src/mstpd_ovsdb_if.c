@@ -3518,6 +3518,9 @@ mstp_util_set_msti_port_table_string (const char *key, char *string, int mstid, 
             msti_row =  bridge_row->value_mstp_instances[i];
             for (j = 0; j < msti_row->n_mstp_instance_ports; j++)
             {
+                if(!msti_row->mstp_instance_ports[j]->port) {
+                    continue;
+                }
                 idp = find_iface_data_by_name(msti_row->mstp_instance_ports[j]->port->name);
                 if(!idp)
                 {

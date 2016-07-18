@@ -226,6 +226,9 @@ vtysh_ovsdb_parse_mstp_intf_config(vtysh_ovsdb_cbmsg_ptr p_msg) {
                 assert(0);
                 return e_vtysh_error;
             }
+            if(!mstp_port_row->port) {
+                continue;
+            }
             if (VTYSH_STR_EQ(mstp_port_row->port->name, ifrow->name)) {
                 if (mstp_port_row->port_priority &&
                    (*mstp_port_row->port_priority != DEF_MSTP_PORT_PRIORITY)) {
