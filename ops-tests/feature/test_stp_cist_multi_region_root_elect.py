@@ -210,6 +210,16 @@ def test_stp_cist_multi_region_root_elect(topology):
     assert(root == ops4_show['root_mac_address']), \
         "Root bridge mac is updated incorrectly"
 
+    if(root == ops1_mac):
+        region_1_sw = ops1
+        region_2_sw = ops3
+    if(root == ops4_mac):
+        region_1_sw = ops2
+        region_2_sw = ops4
+    if(root == ops2_mac or root == ops3_mac):
+        region_1_sw = ops2
+        region_2_sw = ops3
+
     region1_show_mst = region_1_sw.libs.vtysh.show_spanning_tree_mst()
     print(json.dumps(region1_show_mst, indent=4))
 
