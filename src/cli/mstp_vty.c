@@ -54,7 +54,30 @@ extern struct ovsdb_idl *idl;
 const struct shash_node **sort_interface(const struct shash *sh);
 
 VLOG_DEFINE_THIS_MODULE(vtysh_mstp_cli);
-
+/* Function : check_internal_vlan
+ * Description : Checks if interface vlan is being created for
+ * an already used internal VLAN.
+ * param in : vlanid - to check if it is already in use
+ */
+static int
+check_internal_vlan(uint16_t vlanid)
+{
+    const struct ovsrec_vlan *vlan_row = NULL;
+    OVSREC_VLAN_FOR_EACH(vlan_row, idl)
+    {
+        if (smap_get(&vlan_row->internal_usage,
+                    VLAN_INTERNAL_USAGE_L3PORT))
+        {
+            VLOG_DBG("%s Used internally for l3 interface", __func__);
+            /* now check if this vlan is used for creating vlan interface */
+            if (vlanid == vlan_row->id) {
+                VLOG_DBG("%s This is a internal vlan = %d", __func__, vlanid);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
 /*-----------------------------------------------------------------------------
  | Function:        mstp_validateStrVlanNumber
  | Responsibility:  validates if VLAN number has all digits
@@ -1656,15 +1679,14 @@ mstp_update_cist_vlans(const struct ovsrec_vlan *vlan_row, bool operation) {
  ------------------------------------------------------------------------------
  */
 static int
-mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
+mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid, struct ovsdb_idl_txn *txn) {
 
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_instance *mstp_inst_row = NULL;
     struct ovsrec_mstp_instance **mstp_info = NULL;
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_vlan *vlan_row = NULL;
     struct ovsrec_vlan **vlans = NULL;
-    int64_t mstp_old_inst_id = 0, *instId_list = NULL;
+    int64_t *instId_list = NULL;
     int i = 0, j = 0, k = 0;
 
     int64_t vlan_id = MSTP_INVALID_ID;
@@ -1676,44 +1698,46 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
         }
         else
         {
-            ERRONEOUS_DB_TXN(txn, "Invalid VLAN ID");
+            vty_out(vty, "Invalid VLAN ID");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
     }
 
-    START_DB_TXN(txn);
     if (!MSTP_VALID_MSTID(instid)) {
-        ERRONEOUS_DB_TXN(txn, "Invalid InstanceID");
+        vty_out(vty, "Invalid InstanceID");
+        cli_do_config_abort(txn);
+        return CMD_WARNING;
     }
 
-    bridge_row = ovsrec_bridge_first(idl);
-    if (!bridge_row) {
-        ERRONEOUS_DB_TXN(txn, "No record found");
-    }
+    if(vlanid)
+    {
 
-    if (vlanid) {
         OVSREC_VLAN_FOR_EACH(vlan_row, idl) {
             if (vlan_id == vlan_row->id) {
                 break;
             }
         }
         if (!vlan_row) {
-            ERRONEOUS_DB_TXN(txn, "Invalid vlan ID");
-        }
-
-        /* Check if the vlan is already mapped to another instance */
-        mstp_old_inst_id =
-            mstp_util_get_mstid_for_vlanID(vlan_row->id, bridge_row);
-        if ((mstp_old_inst_id != MSTP_INVALID_ID) &&
-                (mstp_old_inst_id != instid)) {
-            ERRONEOUS_DB_TXN(txn,
-                    "This VLAN is not mapped to This instance");
+            vty_out(vty, "Error : Vlan ID-%ld is not created, aborting the VLAN's ",vlan_id);
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
     }
 
-    /* Check if any column with the same instid already exist */
+
+    bridge_row = ovsrec_bridge_first(idl);
+    if (!bridge_row) {
+        vty_out(vty, "No record found");
+        cli_do_config_abort(txn);
+        return CMD_WARNING;
+    }
+    /* Check if instid row exist before trying to perform delete operation*/
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
         if(!(bridge_row->value_mstp_instances[i])) {
-            ERRONEOUS_DB_TXN(txn, "No record found");
+            vty_out(vty, "No record found");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         if (bridge_row->key_mstp_instances[i] == instid) {
             mstp_inst_row = bridge_row->value_mstp_instances[i];
@@ -1723,22 +1747,27 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
 
     /* MSTP instance not found with the incoming instID */
     if(!mstp_inst_row) {
-        ERRONEOUS_DB_TXN(txn,
+        vty_out(vty,
                 "No MSTP instance found with this ID");
+        cli_do_config_abort(txn);
+        return CMD_WARNING;
     }
 
     /* Removing a VLAN from existing instance */
     if(vlanid) {
         if(mstp_inst_row->n_vlans == 1) {
-            ERRONEOUS_DB_TXN(txn,
-                 "The request results in MSTP instance with no VLANs assigned");
-        }
-        /* Push the complete vlan list to MSTP instance table,
+            vty_out(vty,
+                    "The request results in MSTP instance with no VLANs assigned.%s",VTY_NEWLINE);
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }   /* Push the complete vlan list to MSTP instance table,
          * except the removed one */
         vlans =
             xcalloc(mstp_inst_row->n_vlans - 1, sizeof *mstp_inst_row->vlans);
         if (!vlans) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         for (j=0, i = 0; i < mstp_inst_row->n_vlans; i++) {
             if(vlan_id != mstp_inst_row->vlans[i]->id) {
@@ -1757,12 +1786,16 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
     else {
         instId_list = xcalloc(bridge_row->n_mstp_instances -1, sizeof(int64_t));
         if (!instId_list) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         mstp_info = xcalloc(bridge_row->n_mstp_instances - 1,
                             sizeof *bridge_row->value_mstp_instances);
         if (!mstp_info) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         for (j=0, i = 0; i < bridge_row->n_mstp_instances; i++) {
             if (bridge_row->key_mstp_instances[i] != instid) {
@@ -1784,7 +1817,7 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid) {
         free(mstp_info);
         free(instId_list);
     }
-    END_DB_TXN(txn);
+    return CMD_SUCCESS;
 }
 /*-----------------------------------------------------------------------------
  | Function:        sort_mstp_instances
@@ -1831,9 +1864,8 @@ mstp_instances_sort(int64_t *instId_list,
  ------------------------------------------------------------------------------
  */
 static int
-mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
+mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid, struct ovsdb_idl_txn *txn) {
 
-    struct ovsdb_idl_txn *txn = NULL;
     const struct ovsrec_mstp_instance *mstp_inst_row = NULL;
     struct ovsrec_mstp_instance *mstp_row=NULL, **mstp_info = NULL;
     struct ovsrec_mstp_instance_port *mstp_inst_port_row = NULL;
@@ -1841,55 +1873,52 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
     const struct ovsrec_bridge *bridge_row = NULL;
     const struct ovsrec_vlan *vlan_row = NULL;
     struct ovsrec_vlan **vlans = NULL;
-    int64_t mstp_old_inst_id = 0, *instId_list = NULL;
+    int64_t *instId_list = NULL;
     int i = 0, j = 0;
     int64_t port_priority = DEF_MSTP_PORT_PRIORITY;
     int64_t priority = DEF_BRIDGE_PRIORITY;
     int64_t admin_path_cost = DEF_MSTP_COST;
     int64_t vlan_id = 0;
+
     if (mstp_validateStrVlanNumber(vlanid))
     {
         vlan_id = (vlanid)? atoi(vlanid):MSTP_INVALID_ID;
     }
     else
     {
-        ERRONEOUS_DB_TXN(txn, "Invalid VLAN ID");
+        vty_out(vty, "Invalid VLAN ID");
+        cli_do_config_abort(txn);
+        return CMD_WARNING;
     }
 
-    START_DB_TXN(txn);
     if (!MSTP_VALID_MSTID(instid)) {
-        ERRONEOUS_DB_TXN(txn, "Invalid InstanceID");
+        vty_out(vty, "Invalid InstanceID");
+        cli_do_config_abort(txn);
+        return CMD_WARNING;
     }
 
     bridge_row = ovsrec_bridge_first(idl);
     if (!bridge_row) {
-        ERRONEOUS_DB_TXN(txn, "No record found");
+        vty_out(vty, "No record found");
+        cli_do_config_abort(txn);
+        return CMD_WARNING;
     }
 
-    if (vlanid) {
+    if (vlan_id) {
         OVSREC_VLAN_FOR_EACH(vlan_row, idl) {
             if (vlan_id == vlan_row->id) {
                 break;
             }
         }
-        if (!vlan_row) {
-            ERRONEOUS_DB_TXN(txn, "Invalid vlan ID");
-        }
-
-        /* Check if the vlan is already mapped to another instance */
-        mstp_old_inst_id =
-            mstp_util_get_mstid_for_vlanID(vlan_row->id, bridge_row);
-        if (mstp_old_inst_id != MSTP_INVALID_ID) {
-            vty_out(vty, "This VLAN is already mapped to %ld instance%s",
-                        mstp_old_inst_id, VTY_NEWLINE);
-            ABORT_DB_TXN(txn, "NO Record found");
-        }
     }
+
 
     /* Check if any column with the same instid already exist */
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
         if(!(bridge_row->value_mstp_instances[i])) {
-            ERRONEOUS_DB_TXN(txn, "No record found");
+            vty_out(vty, "No record found");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         if (bridge_row->key_mstp_instances[i] == instid) {
             mstp_inst_row = bridge_row->value_mstp_instances[i];
@@ -1897,14 +1926,16 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
         }
     }
 
-    /* MSTP instance not found with the incoming instID */
+    /* MSTP instance found with the incoming instID */
     if(mstp_inst_row) {
         /* Push the complete vlan list to MSTP instance table
          * including the new vlan*/
         vlans =
             xcalloc(mstp_inst_row->n_vlans + 1, sizeof *mstp_inst_row->vlans);
         if (!vlans) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         for (i = 0; i < mstp_inst_row->n_vlans; i++) {
             vlans[i] = mstp_inst_row->vlans[i];
@@ -1920,7 +1951,9 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
         /* Create s MSTP instance row with the incoming data */
         mstp_row = ovsrec_mstp_instance_insert(txn);
         if (!mstp_row) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
 
         ovsrec_mstp_instance_set_vlans(mstp_row,
@@ -1934,7 +1967,9 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
                     sizeof *mstp_row->mstp_instance_ports);
 
         if (!mstp_inst_port_info) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
 
         for (i = 0, j = 0; i < bridge_row->n_ports; i++) {
@@ -1947,7 +1982,9 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
             /* Create MSTI port table */
             mstp_inst_port_row = ovsrec_mstp_instance_port_insert(txn);
             if (!mstp_inst_port_row) {
-                ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+                vty_out(vty, "Memory allocation failed");
+                cli_do_config_abort(txn);
+                return CMD_WARNING;
             }
 
             /* FILL the default values for CIST_port entry */
@@ -1955,8 +1992,17 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
                                                      MSTP_STATE_BLOCK);
             ovsrec_mstp_instance_port_set_port_role( mstp_inst_port_row,
                                                       MSTP_ROLE_DISABLE);
-            ovsrec_mstp_instance_port_set_port_priority(mstp_inst_port_row,
-                                                        &port_priority, 1 );
+            if (!VERIFY_LAG_IFNAME(bridge_row->ports[i]->name))
+            {
+                port_priority = DEF_MSTP_LAG_PRIORITY;
+                ovsrec_mstp_instance_port_set_port_priority(mstp_inst_port_row,
+                        &port_priority, 1 );
+            }
+            else
+            {
+                ovsrec_mstp_instance_port_set_port_priority(mstp_inst_port_row,
+                        &port_priority, 1 );
+            }
             ovsrec_mstp_instance_port_set_admin_path_cost(mstp_inst_port_row,
                                                         &admin_path_cost, 1);
             ovsrec_mstp_instance_port_set_port(mstp_inst_port_row,
@@ -1971,12 +2017,16 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
         mstp_info = xcalloc(bridge_row->n_mstp_instances + 1,
                 sizeof *bridge_row->value_mstp_instances);
         if (!mstp_info) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         instId_list = xcalloc(bridge_row->n_mstp_instances + 1,
-                        sizeof *bridge_row->key_mstp_instances);
+                sizeof *bridge_row->key_mstp_instances);
         if (!instId_list) {
-            ERRONEOUS_DB_TXN(txn, "Memory allocation failed");
+            vty_out(vty, "Memory allocation failed");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
         }
         for (i = 0; i < bridge_row->n_mstp_instances; i++) {
             instId_list[i] = bridge_row->key_mstp_instances[i];
@@ -1998,9 +2048,8 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid) {
 
     /* Remove vlan from CIST*/
     mstp_update_cist_vlans(vlan_row, false);
+    return CMD_SUCCESS;
 
-    /* End of transaction. */
-    END_DB_TXN(txn);
 }
 
 #if 0
@@ -2254,28 +2303,232 @@ DEFUN(cli_no_mstp_config_rev,
 }
 
 DEFUN(cli_mstp_inst_vlanid,
-      cli_mstp_inst_vlanid_cmd,
-      "spanning-tree instance <1-64> vlan VLANID",
-      SPAN_TREE
-      MST_INST
-      "Enter an integer number\n"
-      VLAN_STR
-      "VLAN to add or to remove from the MST instance\n") {
-    mstp_cli_add_inst_vlan_map (atoi(argv[0]), argv[1]);
-    return CMD_SUCCESS;
+        cli_mstp_inst_vlanid_cmd,
+        "spanning-tree instance <1-64> vlan <A:1-4094>",
+        SPAN_TREE
+        MST_INST
+        "Enter an integer number\n"
+        VLAN_STR
+        "VLAN to add or to remove from the MST instance\n") {
+    char *vlan_id = NULL;
+    uint64_t vlanid = 0;
+    struct ovsdb_idl_txn *txn = NULL;
+    struct range_list *temp_to_free, *temp_to_display, *list = NULL;
+    const struct ovsrec_vlan *vlan_row = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    char *in = xmalloc ((strlen(argv[1]) + 1) * sizeof (char));
+    strncpy(in, argv[1], strlen(argv[1]) + 1);
+    list = cmd_get_range_value(in, 0);
+    free(in);
+    if (list == NULL)
+        return CMD_ERR_NO_MATCH;
+    temp_to_free = temp_to_display = list;
+    START_DB_TXN(txn);
+    while (list != NULL)
+    {
+        vlan_id = list->value;
+        vlanid = atoi(vlan_id);
+        /* Check for internal vlan use. */
+        if (check_internal_vlan(vlanid) == 0)
+        {
+            vty_out(vty, "Error : Vlan ID-%s is an internal vlan, aborting the VLAN's ",vlan_id);
+            while (temp_to_display->link != NULL)
+            {
+                vty_out (vty, "%s, ", (temp_to_display->value));
+                temp_to_display = temp_to_display->link;
+            }
+            vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+            temp_to_display = NULL;
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }
+        if (vlanid) {
+            int64_t mstp_old_inst_id = 0;
+            OVSREC_VLAN_FOR_EACH(vlan_row, idl) {
+                if (vlanid == vlan_row->id) {
+                    break;
+                }
+            }
+            if (!vlan_row) {
+                vty_out(vty, "Error : Vlan ID-%s is not created, aborting the VLAN's ",vlan_id);
+                while (temp_to_display->link != NULL)
+                {
+                    vty_out (vty, "%s, ", (temp_to_display->value));
+                    temp_to_display = temp_to_display->link;
+                }
+                vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+                temp_to_display = NULL;
+                cli_do_config_abort(txn);
+                return CMD_WARNING;
+            }
+
+            /* Check if the vlan is already mapped to another instance */
+            bridge_row = ovsrec_bridge_first(idl);
+            mstp_old_inst_id =
+                mstp_util_get_mstid_for_vlanID(vlan_row->id, bridge_row);
+            if (mstp_old_inst_id != MSTP_INVALID_ID) {
+                vty_out(vty, "Error : Vlan ID-%s is already mapped to other instance, aborting the VLAN's ",vlan_id);
+                while (temp_to_display->link != NULL)
+                {
+                    vty_out (vty, "%s, ", (temp_to_display->value));
+                    temp_to_display = temp_to_display->link;
+                }
+                vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+                temp_to_display = NULL;
+                cli_do_config_abort(txn);
+                return CMD_WARNING;
+            }
+        }
+
+
+        if (mstp_cli_add_inst_vlan_map (atoi(argv[0]), vlan_id, txn) != CMD_SUCCESS)
+        {
+            vty_out(vty, "Error : Aborting the VLAN's ");
+            while (temp_to_display->link != NULL)
+            {
+                vty_out (vty, "%s, ", (temp_to_display->value));
+                temp_to_display = temp_to_display->link;
+            }
+            vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+            temp_to_display = NULL;
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }
+        list = list->link;
+    }
+    temp_to_free = cmd_free_memory_range_list(temp_to_free);
+    END_DB_TXN(txn);
+    /* End of transaction. */
 }
 
 DEFUN(cli_no_mstp_inst_vlanid,
       cli_no_mstp_inst_vlanid_cmd,
-      "no spanning-tree instance <1-64> vlan VLANID",
+      "no spanning-tree instance <1-64> vlan <A:1-4094>",
       NO_STR
       SPAN_TREE
       MST_INST
       "Enter an integer number\n"
       VLAN_STR
       "VLAN to add or to remove from the MST instance\n") {
-    mstp_cli_remove_inst_vlan_map (atoi(argv[0]), argv[1]);
-    return CMD_SUCCESS;
+    char *vlan_id = NULL;
+    int i = 0;
+    uint64_t vlanid = 0;
+    int64_t mstid = atoi(argv[0]);
+    struct ovsdb_idl_txn *txn = NULL;
+    struct range_list *temp_to_free, *temp_to_display, *list = NULL;
+    const struct ovsrec_vlan *vlan_row = NULL;
+    const struct ovsrec_mstp_instance *mstp_inst_row = NULL;
+    const struct ovsrec_bridge *bridge_row = NULL;
+    char *in = xmalloc ((strlen(argv[1]) + 1) * sizeof (char));
+    strncpy(in, argv[1], strlen(argv[1]) + 1);
+    list = cmd_get_range_value(in, 0);
+    free(in);
+    if (list == NULL)
+        return CMD_ERR_NO_MATCH;
+    temp_to_free = temp_to_display = list;
+    START_DB_TXN(txn);
+    while (list != NULL)
+    {
+        vlan_id = list->value;
+        vlanid = atoi(vlan_id);
+        /* Check for internal vlan use. */
+        if (check_internal_vlan(vlanid) == 0)
+        {
+            vty_out(vty, "Error : Vlan ID-%s is an internal vlan, aborting the VLAN's ",vlan_id);
+            while (temp_to_display->link != NULL)
+            {
+                vty_out (vty, "%s, ", (temp_to_display->value));
+                temp_to_display = temp_to_display->link;
+            }
+            vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+            temp_to_display = NULL;
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }
+        if (vlanid) {
+            int64_t mstp_old_inst_id = 0;
+            OVSREC_VLAN_FOR_EACH(vlan_row, idl) {
+                if (vlanid == vlan_row->id) {
+                    break;
+                }
+            }
+            if (!vlan_row) {
+                vty_out(vty, "Error : Vlan ID-%s is not created, aborting the VLAN's ",vlan_id);
+                while (temp_to_display->link != NULL)
+                {
+                    vty_out (vty, "%s, ", (temp_to_display->value));
+                    temp_to_display = temp_to_display->link;
+                }
+                vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+                temp_to_display = NULL;
+                cli_do_config_abort(txn);
+                return CMD_WARNING;
+            }
+
+            /* Check if the vlan is already mapped to another instance */
+            bridge_row = ovsrec_bridge_first(idl);
+            mstp_old_inst_id =
+                mstp_util_get_mstid_for_vlanID(vlan_row->id, bridge_row);
+            if (mstp_old_inst_id != mstid) {
+                vty_out(vty, "Error : Vlan ID-%s is not mapped to this instance, aborting the VLAN's ",vlan_id);
+                while (temp_to_display->link != NULL)
+                {
+                    vty_out (vty, "%s, ", (temp_to_display->value));
+                    temp_to_display = temp_to_display->link;
+                }
+                vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+                temp_to_display = NULL;
+                cli_do_config_abort(txn);
+                return CMD_WARNING;
+            }
+        }
+
+        /* Check if any column with the same instid already exist */
+        for (i=0; i < bridge_row->n_mstp_instances; i++) {
+            if(!(bridge_row->value_mstp_instances[i])) {
+                vty_out(vty, "No record found");
+            }
+            if (bridge_row->key_mstp_instances[i] == mstid) {
+                mstp_inst_row = bridge_row->value_mstp_instances[i];
+                break;
+            }
+        }
+
+        /* MSTP instance not found with the incoming instID */
+        if(!mstp_inst_row) {
+            vty_out(vty,
+                    "No MSTP instance found with this ID");
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }
+
+        if(mstp_inst_row->n_vlans == 1) {
+            vty_out(vty,
+                 "The request results in MSTP instance with no VLANs assigned.%s", VTY_NEWLINE);
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }
+
+
+
+        if (mstp_cli_remove_inst_vlan_map (atoi(argv[0]), vlan_id, txn) != CMD_SUCCESS)
+        {
+            vty_out(vty, "Error : Aborting the VLAN's ");
+            while (temp_to_display->link != NULL)
+            {
+                vty_out (vty, "%s, ", (temp_to_display->value));
+                temp_to_display = temp_to_display->link;
+            }
+            vty_out (vty, "%s configurations.%s", (temp_to_display->value), VTY_NEWLINE);
+            temp_to_display = NULL;
+            cli_do_config_abort(txn);
+            return CMD_WARNING;
+        }
+        list = list->link;
+    }
+    temp_to_free = cmd_free_memory_range_list(temp_to_free);
+    END_DB_TXN(txn);
+    /* End of transaction. */
 }
 
 DEFUN(cli_no_mstp_inst,
@@ -2285,7 +2538,12 @@ DEFUN(cli_no_mstp_inst,
       SPAN_TREE
       MST_INST
       "Enter an integer number\n") {
-    mstp_cli_remove_inst_vlan_map (atoi(argv[0]), NULL);
+    struct ovsdb_idl_txn *txn = NULL;
+    START_DB_TXN(txn);
+    if (mstp_cli_remove_inst_vlan_map (atoi(argv[0]), NULL,txn) == CMD_SUCCESS)
+    {
+        END_DB_TXN(txn);
+    }
     return CMD_SUCCESS;
 }
 

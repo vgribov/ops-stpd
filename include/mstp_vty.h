@@ -32,6 +32,7 @@
 #define MSTP_MAX_CONFIG_NAME_LEN    32
 #define MSTP_BRIDGE_PRIORITY_MULTIPLIER 4096
 #define MSTP_PORT_PRIORITY_MULTIPLIER 16
+#define VERIFY_LAG_IFNAME(s) strncasecmp(s, "lag", 3)
 
 #define MSTP_VALID_MSTID(mstid) \
     (((mstid) >= MSTP_MSTID_MIN) && ((mstid) <= MSTP_MSTID_MAX))
@@ -69,6 +70,7 @@ typedef enum mstp_flags
 #define DEF_MAX_HOPS                 20
 #define DEF_CONFIG_REV               "0"
 #define DEF_MSTP_PORT_PRIORITY       8
+#define DEF_MSTP_LAG_PRIORITY        4
 #define DEF_MSTP_COST                0
 #define DEF_LINK_TYPE                "point_to_point"
 

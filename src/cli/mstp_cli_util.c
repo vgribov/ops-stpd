@@ -35,9 +35,9 @@ extern struct ovsdb_idl *idl;
 #define MSTP_VALID_MSTID(mstid) \
     (((mstid) >= MSTP_MSTID_MIN) && ((mstid) <= MSTP_MSTID_MAX))
 
+#define VERIFY_LAG_IFNAME(s) strncasecmp(s, "lag", 3)
 #define MEGA_BITS_PER_SEC  1000000
 #define INTF_TO_MSTP_LINK_SPEED(s)    ((s)/MEGA_BITS_PER_SEC)
-#define VERIFY_LAG_IFNAME(s) strncasecmp(s, "lag", 3)
 
 #define DEF_LINK_SPEED                20000
 /**PROC+**********************************************************************
