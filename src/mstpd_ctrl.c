@@ -536,10 +536,10 @@ mstpd_protocol_thread(void *arg)
                 clear_port(&l2ports,lport);
                 update_port_entry_in_cist_mstp_instances(port,e_mstpd_lport_delete);
                 update_port_entry_in_msti_mstp_instances(port,e_mstpd_lport_delete);
+                mstp_removeLport(lport);
                 if (MSTP_ENABLED)
                 {
                     deregister_stp_mcast_addr(lport);
-                    mstp_removeLport(lport);
                 }
                 break;
             case e_mstpd_lport_up:

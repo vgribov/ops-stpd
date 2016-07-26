@@ -169,68 +169,62 @@ mstp_addLport(LPORT_t lport)
 void
 mstp_removeLport(LPORT_t lport)
 {
-   MSTID_t mstid;
-   char portName[10];
-   /*------------------------------------------------------------------------
-    * If we are being called before MSTP has finish initialization then exit
-    * (this happens during initialization). 'Stp_Initialized' is also set to
-    * FALSE when TFTP frees the memory for downloading.
-    *------------------------------------------------------------------------*/
-   /*------------------------------------------------------------------------
-    * If MSTP is not enabled there is nothing to do
-    *------------------------------------------------------------------------*/
-   if(MSTP_ENABLED == FALSE)
-      return;
+    MSTID_t mstid;
+    /*------------------------------------------------------------------------
+     * If we are being called before MSTP has finish initialization then exit
+     * (this happens during initialization). 'Stp_Initialized' is also set to
+     * FALSE when TFTP frees the memory for downloading.
+     *------------------------------------------------------------------------*/
+    /*------------------------------------------------------------------
+     * Update internal MSTP data structures do not refer to the removing
+     * 'lport' (e.g. if this port is the Root Port then some global data
+     * structures may keep track of it, as a result it will cause the
+     * problems if someone tries to refer to the port's data structure
+     * that does not exist).
+     * NOTE: this is vitally important if port removal is not being
+     *       accompanied with 'port_down' or 'port_up' events or they
+     *       are being significantly delayed
+     * The function call below will kick appropriate state machines and
+     * they will synchronise the protocol data with the environmental
+     * changes.
+     *------------------------------------------------------------------*/
+    if (MSTP_ENABLED)
+    {
+        mstp_portDisable(lport);
+    }
 
-         /*------------------------------------------------------------------
-          * Update internal MSTP data structures do not refer to the removing
-          * 'lport' (e.g. if this port is the Root Port then some global data
-          * structures may keep track of it, as a result it will cause the
-          * problems if someone tries to refer to the port's data structure
-          * that does not exist).
-          * NOTE: this is vitally important if port removal is not being
-          *       accompanied with 'port_down' or 'port_up' events or they
-          *       are being significantly delayed
-          * The function call below will kick appropriate state machines and
-          * they will synchronise the protocol data with the environmental
-          * changes.
-          *------------------------------------------------------------------*/
-         mstp_portDisable(lport);
+    /*------------------------------------------------------------------
+     * Remove port data from every configured MST Instance
+     *------------------------------------------------------------------*/
+    for(mstid = MSTP_MSTID_MIN; mstid <= MSTP_MSTID_MAX; mstid++)
+    {
+        if(MSTP_MSTI_INFO(mstid) && MSTP_MSTI_PORT_PTR(mstid, lport))
+        {
+            mstp_clearMstiPortData(mstid, lport);
+        }
+    }
 
-         /*------------------------------------------------------------------
-          * Remove port data from every configured MST Instance
-          *------------------------------------------------------------------*/
-         for(mstid = MSTP_MSTID_MIN; mstid <= MSTP_MSTID_MAX; mstid++)
-         {
-            if(MSTP_MSTI_INFO(mstid) && MSTP_MSTI_PORT_PTR(mstid, lport))
-            {
-               mstp_clearMstiPortData(mstid, lport);
-            }
-         }
+    /*------------------------------------------------------------------
+     * Remove port data from the CIST
+     *------------------------------------------------------------------*/
+    if(MSTP_CIST_PORT_PTR(lport))
+        mstp_clearCistPortData(lport);
 
-         /*------------------------------------------------------------------
-          * Remove port data from the CIST
-          *------------------------------------------------------------------*/
-         if(MSTP_CIST_PORT_PTR(lport))
-            mstp_clearCistPortData(lport);
+    /*------------------------------------------------------------------
+     * Remove common port data (used by the CIST and all the MSTIs)
+     *------------------------------------------------------------------*/
+    if(MSTP_COMM_PORT_PTR(lport))
+        mstp_clearCommonPortData(lport);
 
-         /*------------------------------------------------------------------
-          * Remove common port data (used by the CIST and all the MSTIs)
-          *------------------------------------------------------------------*/
-         if(MSTP_COMM_PORT_PTR(lport))
-            mstp_clearCommonPortData(lport);
+    MSTP_DYN_CFG_PRINTF("!REMOVED PORT %d", lport);
 
-         MSTP_DYN_CFG_PRINTF("!REMOVED PORT %d", lport);
-         intf_get_port_name(lport, portName);
-         MSTP_PRINTF_EVENT("Removed Port - %s", portName);
-
-   /*------------------------------------------------------------------------
-    * After port(s) deletion lets update port maps that MSTP uses when
-    * interacts with other subsystems to propagate ports state change info,
-    * to make sure we do not have non-existent ports to be set in those port
-    * maps (all port maps are located in mstp_CB data structure).
-    *------------------------------------------------------------------------*/
-   mstp_updateMstpCBPortMaps(lport);
+    /*------------------------------------------------------------------------
+     * After port(s) deletion lets update port maps that MSTP uses when
+     * interacts with other subsystems to propagate ports state change info,
+     * to make sure we do not have non-existent ports to be set in those port
+     * maps (all port maps are located in mstp_CB data structure).
+     *------------------------------------------------------------------------*/
+    mstp_updateMstpCBPortMaps(lport);
 
 }
 
