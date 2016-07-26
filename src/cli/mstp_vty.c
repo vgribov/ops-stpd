@@ -54,6 +54,47 @@ extern struct ovsdb_idl *idl;
 const struct shash_node **sort_interface(const struct shash *sh);
 
 VLOG_DEFINE_THIS_MODULE(vtysh_mstp_cli);
+
+/* Name:    mstpd_is_valid_port_row
+ *
+ * Purpose:  validates port row whether mstpd required or not
+ *
+ * Params:    none
+ *
+ * Returns:   none
+ */
+static bool
+mstp_is_valid_port_row(const struct ovsrec_port *prow)
+{
+    bool retval = false;
+    const struct ovsrec_interface *ifrow;
+
+    if(!prow) {
+        return retval;
+    }
+
+    if (!VERIFY_LAG_IFNAME(prow->name)) {
+        retval = true;
+    } else if (prow->n_interfaces == 1) {
+        ifrow = prow->interfaces[0];
+        if (!ifrow) {
+            retval = false;
+        } else {
+            if (strncmp(ifrow->type,OVSREC_INTERFACE_TYPE_SYSTEM,
+                        strlen(ifrow->type))!=0) {
+                retval = false;
+            } else {
+                retval = true;
+            }
+        }
+    } else {
+        retval = false;
+    }
+
+    return retval;
+}
+
+
 /* Function : check_internal_vlan
  * Description : Checks if interface vlan is being created for
  * an already used internal VLAN.
@@ -1948,6 +1989,7 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid, struct ovsd
         free(vlans);
     }
     else {
+        uint64_t lport_count = 0;
         /* Create s MSTP instance row with the incoming data */
         mstp_row = ovsrec_mstp_instance_insert(txn);
         if (!mstp_row) {
@@ -1978,6 +2020,12 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid, struct ovsd
             if(VTYSH_STR_EQ(bridge_row->ports[i]->name, DEFAULT_BRIDGE_NAME)) {
                 continue;
             }
+
+            if (!mstp_is_valid_port_row(bridge_row->ports[i]))
+            {
+                continue;
+            }
+            lport_count++;
 
             /* Create MSTI port table */
             mstp_inst_port_row = ovsrec_mstp_instance_port_insert(txn);
@@ -2011,7 +2059,7 @@ mstp_cli_add_inst_vlan_map(const int64_t instid, const char *vlanid, struct ovsd
         }
 
         ovsrec_mstp_instance_set_mstp_instance_ports(mstp_row,
-                    mstp_inst_port_info, (bridge_row->n_ports - 1));
+                    mstp_inst_port_info, lport_count);
 
         /* Append the MSTP new instance to the existing list */
         mstp_info = xcalloc(bridge_row->n_mstp_instances + 1,
