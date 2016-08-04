@@ -1350,6 +1350,7 @@ mstp_cist_create(const struct stp_blk_params *br,
 {
     struct mstp_instance *msti;
     char inst_id_string[INSTANCE_STRING_LEN] = "";
+    struct asic_plugin_interface *p_asic_interface = NULL;
 
     if (!msti_cist_cfg || !br) {
         VLOG_DBG("%s: invalid param", __FUNCTION__);
@@ -1373,6 +1374,12 @@ mstp_cist_create(const struct stp_blk_params *br,
     msti->hw_stg_id = MSTP_DEFAULT_STG_GROUP;
     msti->nb_vlans = 0;
     msti->nb_ports = 0;
+
+    p_asic_interface = get_asic_plugin_interface();
+    if (p_asic_interface) {
+        p_asic_interface->get_stg_default(&msti->hw_stg_id);
+    }
+
     mstp_cist_add_del_vlans(br, msti);
     mstp_cist_configure_ports(br, msti);
 }
