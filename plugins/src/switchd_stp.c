@@ -16,6 +16,7 @@
 /* @file switchd_stp.c
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -411,7 +412,7 @@ mstp_cist_and_instance_vlan_add(const struct stp_blk_params *br,
     /* Allocate structure to save state information for this VLAN. */
     new_vlan = xzalloc(sizeof(struct mstp_instance_vlan));
     if (!new_vlan) {
-        VLOG_ERR("%s: Failed to allocate memory for vlan %ld in instance %d",
+        VLOG_ERR("%s: Failed to allocate memory for vlan %" PRIi64 " in instance %d",
                   __FUNCTION__, vlan_cfg->id, msti->instance_id);
         return;
     }

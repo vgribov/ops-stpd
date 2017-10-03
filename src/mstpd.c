@@ -30,6 +30,7 @@
  *       3. Dynamically configure hardware based on
  *          operational state changes as needed.
  ***************************************************************************/
+#include <inttypes.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
@@ -120,7 +121,7 @@ mstpd_diag_dump_basic_cb(const char *feature , char **buf)
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
         memset(argv, 0, sizeof(argv));
         memset(inst_id, 0, sizeof(inst_id));
-        snprintf(inst_id, sizeof(inst_id), "%ld", bridge_row->key_mstp_instances[i]);
+        snprintf(inst_id, sizeof(inst_id), "%" PRIi64, bridge_row->key_mstp_instances[i]);
         mstp_row = bridge_row->value_mstp_instances[i];
         if(!mstp_row) {
             VLOG_ERR("No MSTP Record found %s: %d",__FILE__, __LINE__);

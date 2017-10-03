@@ -21,6 +21,7 @@
  *    File               : mstp_vty.c
  *    Description        : MSTP Protocol CLI Commands
  ******************************************************************************/
+#include <inttypes.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <pwd.h>
@@ -298,16 +299,16 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
             (*cist_row->topology_unstable == true)?"False": "True"),
             VTY_NEWLINE);
 
-    vty_out(vty, "%-30s: %ld%s", "Number of topology changes",
+    vty_out(vty, "%-30s: %" PRIi64 "%s", "Number of topology changes",
             (cist_row->topology_change_count)?*cist_row->topology_change_count:0,
             VTY_NEWLINE);
 
-    vty_out(vty, "%-30s: %ld seconds ago%s",
+    vty_out(vty, "%-30s: %" PRIi64 " seconds ago%s",
             "Last topology change occurred",
             (current_time - (int64_t)((cist_row->time_since_top_change)?*cist_row->time_since_top_change:0)),
             VTY_NEWLINE);
 
-    vty_out(vty, "%-10s %-13s %-2ld, %-20s %-2ld %s", "Timers:",
+    vty_out(vty, "%-10s %-13s %-2" PRIi64 ", %-20s %-2" PRIi64 " %s", "Timers:",
             "Hello expiry",
             (cist_row->hello_expiry_time)?*cist_row->hello_expiry_time:0,
             "Forward delay expiry",
@@ -357,7 +358,7 @@ cli_show_spanning_tree_detailed_config(const struct ovsrec_mstp_common_instance 
         vty_out(vty, "%-43s:%s %s", "Designated port",
                      cist_port->designated_port, VTY_NEWLINE);
 
-        vty_out(vty, "%-43s:%2ld%s", "Number of transitions to forwarding state",
+        vty_out(vty, "%-43s:%2" PRIi64 "%s", "Number of transitions to forwarding state",
                     (cist_port->fwd_transition_count)?*cist_port->fwd_transition_count:(int64_t)0,
                      VTY_NEWLINE);
         mstp_print_port_statistics(cist_port);
@@ -427,18 +428,18 @@ cli_show_spanning_tree_config(bool detail) {
     if (VTYSH_STR_EQ(system_row->system_mac, root_mac)) {
         vty_out(vty, "  %34s%s", "This bridge is the root", VTY_NEWLINE);
     }
-    vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
+    vty_out(vty, "  %34s%" PRIi64 "  %s%" PRIi64 "  %s%" PRIi64 "%s",
             "Hello time(in seconds):", *cist_row->oper_hello_time,
             "Max Age(in seconds):", *cist_row->oper_max_age,
             "Forward Delay(in seconds):", *cist_row->oper_forward_delay,
             VTY_NEWLINE);
 
-    vty_out(vty, "%s  %-10s %-10s: %-20ld%s", VTY_NEWLINE, "Bridge ID",
+    vty_out(vty, "%s  %-10s %-10s: %-20" PRIi64 "%s", VTY_NEWLINE, "Bridge ID",
             "Priority", ((*cist_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
     vty_out(vty, "  %22s: %-20s%s", "MAC-Address",
             system_row->system_mac, VTY_NEWLINE);
-    vty_out(vty, "  %34s%ld  %s%ld  %s%ld%s",
+    vty_out(vty, "  %34s%" PRIi64 "  %s%" PRIi64 "  %s%" PRIi64"%s",
             "Hello time(in seconds):", *cist_row->hello_time,
             "Max Age(in seconds):", *cist_row->max_age,
             "Forward Delay(in seconds):", *cist_row->forward_delay,
@@ -472,7 +473,7 @@ cli_show_spanning_tree_config(bool detail) {
 
     for(i=0; i<count; i++) {
         cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[i]->data;
-        vty_out(vty, "%-12s %-14s %-10s %-7ld %-10ld %s%s",
+        vty_out(vty, "%-12s %-14s %-10s %-7" PRIi64 " %-10" PRIi64 " %s%s",
                 cist_port->port->name, cist_port->port_role, cist_port->port_state,
                 (*cist_port->admin_path_cost != DEF_MSTP_COST)?*cist_port->admin_path_cost:get_intf_link_cost(cist_port->port),
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER),
@@ -521,7 +522,7 @@ cli_show_mstp_config() {
             VTY_NEWLINE);
     vty_out(vty, "   %-20s : %-15s%s", "MST config digest",
             smap_get(&bridge_row->status, MSTP_CONFIG_DIGEST), VTY_NEWLINE);
-    vty_out(vty, "   %-20s : %-15ld%s", "Number of instances",
+    vty_out(vty, "   %-20s : %-15zu%s", "Number of instances",
             bridge_row->n_mstp_instances, VTY_NEWLINE);
 
     vty_out(vty, "%s%-15s %-18s%s", VTY_NEWLINE, "Instance ID",
@@ -538,7 +539,7 @@ cli_show_mstp_config() {
     for (i=0; i < bridge_row->n_mstp_instances; i++) {
 
         /* Loop for all vlans in one MST instance table */
-        vty_out(vty,"%-16ld", bridge_row->key_mstp_instances[i]);
+        vty_out(vty,"%-16" PRIi64, bridge_row->key_mstp_instances[i]);
         print_vid_for_instance(bridge_row->key_mstp_instances[i]);
         vty_out(vty, "%s", VTY_NEWLINE);
     }
@@ -576,7 +577,7 @@ mstp_show_common_instance_info(
     print_vid_for_instance(MSTP_CISTID);
 
     vty_out(vty, "%s", VTY_NEWLINE);
-    vty_out(vty, "%-14s %s:%-20s %s:%ld%s", "Bridge", "Address",
+    vty_out(vty, "%-14s %s:%-20s %s:%" PRIi64 "%s", "Bridge", "Address",
             system_row->system_mac, "priority",
             ((*cist_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
@@ -596,7 +597,7 @@ mstp_show_common_instance_info(
         }
     }
 
-    vty_out(vty, "%-14s %s:%2ld  %s:%2ld  %s:%2ld  %s:%2ld%s", "Operational",
+    vty_out(vty, "%-14s %s:%2" PRIi64 "  %s:%2" PRIi64 "  %s:%2" PRIi64 "  %s:%2" PRIi64 "%s", "Operational",
             "Hello time(in seconds)",
             (cist_row->oper_hello_time)?*cist_row->oper_hello_time:DEF_HELLO_TIME,
             "Forward delay(in seconds)",
@@ -606,7 +607,7 @@ mstp_show_common_instance_info(
             "txHoldCount(in pps)",
             (cist_row->oper_tx_hold_count)?*cist_row->oper_tx_hold_count:DEF_HOLD_COUNT,
             VTY_NEWLINE);
-    vty_out(vty, "%-14s %s:%2ld  %s:%2ld  %s:%2ld  %s:%2ld%s", "Configured",
+    vty_out(vty, "%-14s %s:%2" PRIi64 "  %s:%2" PRIi64 "  %s:%2" PRIi64 "  %s:%2" PRIi64 "%s", "Configured",
             "Hello time(in seconds)",
             (cist_row->hello_time)?*cist_row->hello_time:DEF_HELLO_TIME,
             "Forward delay(in seconds)",
@@ -617,12 +618,12 @@ mstp_show_common_instance_info(
             (cist_row->tx_hold_count)?*cist_row->tx_hold_count:DEF_HOLD_COUNT,
             VTY_NEWLINE);
 
-    vty_out(vty, "%-14s Address:%-20s Priority:%ld%s", "Root",
+    vty_out(vty, "%-14s Address:%-20s Priority:%" PRIi64 "%s", "Root",
             root_mac,
             (cist_row->root_priority)?(*cist_row->root_priority):(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
-    vty_out(vty, "%19s:%s, Cost:%ld, Rem Hops:%ld%s", "Port",
+    vty_out(vty, "%19s:%s, Cost:%" PRIi64 ", Rem Hops:%" PRIi64 "%s", "Port",
             (cist_row->root_port)?cist_row->root_port:"0",
             (cist_row->root_path_cost)?*cist_row->root_path_cost:DEF_MSTP_COST,
             (cist_row->remaining_hops)?*cist_row->remaining_hops:(int64_t)0,
@@ -657,7 +658,7 @@ mstp_show_common_instance_info(
 
     for(j=0; j<count; j++) {
         cist_port = (const struct ovsrec_mstp_common_instance_port *)cist_port_nodes[j]->data;
-        vty_out(vty, "%-14s %-14s %-10s %-10ld %-10ld %s%s",
+        vty_out(vty, "%-14s %-14s %-10s %-10" PRIi64 " %-10" PRIi64 " %s%s",
                 cist_port->port->name, cist_port->port_role,
                 cist_port->port_state,
                 (*cist_port->admin_path_cost != DEF_MSTP_COST)?*cist_port->admin_path_cost:get_intf_link_cost(cist_port->port),
@@ -712,7 +713,7 @@ mstp_show_common_instance_port_info(
     vty_out(vty, "%-35s: %s%s", "Designated bridge address",
                  cist_port->designated_bridge, VTY_NEWLINE);
 
-    vty_out(vty, "%-10s %s %ld sec, %s:%ld, %s:%ld%s", "Timers:",
+    vty_out(vty, "%-10s %s %" PRIi64 " sec, %s:%" PRIi64 ", %s:%" PRIi64 "%s", "Timers:",
                  "Message expires in",
                  (cist_row->hello_expiry_time)?*cist_row->hello_expiry_time:0,
                  "Forward delay expiry",
@@ -751,14 +752,14 @@ mstp_show_instance_info(int64_t inst_id, const struct ovsrec_mstp_instance *mstp
         return e_vtysh_error;
     }
 
-    vty_out(vty, "%s%s%ld%s%s  ", VTY_NEWLINE, "#### MST",
+    vty_out(vty, "%s%s%" PRIi64 "%s%s  ", VTY_NEWLINE, "#### MST",
            inst_id, VTY_NEWLINE, "Vlans mapped:");
     if (mstp_row->vlans) {
         print_vid_for_instance(inst_id);
     }
 
     vty_out(vty, "%s", VTY_NEWLINE);
-    vty_out(vty, "%-14s %s:%-20s %s:%ld%s", "Bridge", "Address",
+    vty_out(vty, "%-14s %s:%-20s %s:%" PRIi64 "%s", "Bridge", "Address",
             system_row->system_mac, "Priority",
             ((*mstp_row->priority) * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
@@ -768,12 +769,12 @@ mstp_show_instance_info(int64_t inst_id, const struct ovsrec_mstp_instance *mstp
         sscanf(mstp_row->designated_root, "%d.%d.%s", &priority, &sys_id, root_mac);
     }
 
-    vty_out(vty, "%-14s Address:%-20s Priority:%ld%s", "Root",
+    vty_out(vty, "%-14s Address:%-20s Priority:%" PRIi64 "%s", "Root",
             root_mac,
             (mstp_row->root_priority)?(*mstp_row->root_priority + inst_id):(DEF_BRIDGE_PRIORITY * MSTP_BRIDGE_PRIORITY_MULTIPLIER),
             VTY_NEWLINE);
 
-    vty_out(vty, "%19s:%s, Cost:%ld, Rem Hops:%ld%s", "Port",
+    vty_out(vty, "%19s:%s, Cost:%" PRIi64 ", Rem Hops:%" PRIi64 "%s", "Port",
             (mstp_row->root_port)?mstp_row->root_port:"0",
             (mstp_row->root_path_cost)?*mstp_row->root_path_cost:DEF_MSTP_COST,
             (mstp_row->remaining_hops)?*mstp_row->remaining_hops:(int64_t)0,
@@ -809,7 +810,7 @@ mstp_show_instance_info(int64_t inst_id, const struct ovsrec_mstp_instance *mstp
             return e_vtysh_error;
         }
         if (mstp_port->port) {
-            vty_out(vty, "%-14s %-14s %-10s %-7ld %-10ld %s%s",
+            vty_out(vty, "%-14s %-14s %-10s %-7" PRIi64 " %-10" PRIi64 " %s%s",
                     mstp_port->port->name, mstp_port->port_role,
                     mstp_port->port_state,
                     (*mstp_port->admin_path_cost != DEF_MSTP_COST)?*mstp_port->admin_path_cost:get_intf_link_cost(mstp_port->port),
@@ -935,13 +936,13 @@ cli_show_mst_interface(int inst_id, const char *if_name, bool detail) {
         vty_out(vty, "%s %s%s", "-------------- --------------",
                 "---------- ---------- ---------- ----------", VTY_NEWLINE);
         if(inst_id != MSTP_CISTID) {
-            vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
+            vty_out(vty, "%-14d %-14s %-10s %-10" PRIi64 " %-11" PRIi64, inst_id,
                     mstp_port_row->port_role, mstp_port_row->port_state,
                     (*mstp_port_row->admin_path_cost != DEF_MSTP_COST)?*mstp_port_row->admin_path_cost:get_intf_link_cost(mstp_port_row->port),
                     ((*mstp_port_row->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
         }
         else{
-            vty_out(vty, "%-14d %-14s %-10s %-10ld %-11ld", inst_id,
+            vty_out(vty, "%-14d %-14s %-10s %-10" PRIi64 " %-11" PRIi64, inst_id,
                 cist_port->port_role, cist_port->port_state,
                 (*cist_port->admin_path_cost != DEF_MSTP_COST)?*cist_port->admin_path_cost:get_intf_link_cost(cist_port->port),
                 ((*cist_port->port_priority) * MSTP_PORT_PRIORITY_MULTIPLIER));
@@ -1102,7 +1103,7 @@ cli_show_mstp_global_config() {
             shash_init(&sorted_vlan_id);
             memset(str, 0, 15);
             for (j=0; j<mstp_row->n_vlans; j++) {
-                sprintf(str, "%ld", mstp_row->vlans[j]->id);
+                sprintf(str, "%" PRIi64 , mstp_row->vlans[j]->id);
                 if (NULL == shash_add(&sorted_vlan_id, str, (void *)mstp_row->vlans[j])) {
                     shash_destroy(&sorted_vlan_id);
                     return e_vtysh_ok;
@@ -1118,7 +1119,7 @@ cli_show_mstp_global_config() {
 
             /* Loop for all vlans in one MST instance table */
             for (j=0; j<mstp_row->n_vlans; j++) {
-                vty_out(vty, "spanning-tree instance %ld vlan %ld%s",
+                vty_out(vty, "spanning-tree instance %" PRIi64 " vlan %" PRIi64 "%s",
                     bridge_row->key_mstp_instances[i],
                     ((const struct ovsrec_vlan *)vlan_nodes[j]->data)->id,
                     VTY_NEWLINE);
@@ -1126,7 +1127,7 @@ cli_show_mstp_global_config() {
 
             if (mstp_row->priority &&
                     (*mstp_row->priority != DEF_BRIDGE_PRIORITY)) {
-                vty_out(vty, "spanning-tree instance %ld priority %ld%s",
+                vty_out(vty, "spanning-tree instance %" PRIi64 " priority %" PRIi64 "%s",
                 bridge_row->key_mstp_instances[i],
                 *mstp_row->priority, VTY_NEWLINE);
             }
@@ -1141,31 +1142,31 @@ cli_show_mstp_global_config() {
     if (cist_row) {
         if (cist_row->priority &&
                 *cist_row->priority != DEF_BRIDGE_PRIORITY) {
-            vty_out(vty, "spanning-tree priority %ld%s",
+            vty_out(vty, "spanning-tree priority %" PRIi64 "%s",
                     *cist_row->priority, VTY_NEWLINE);
         }
         if (cist_row->hello_time &&
                 *cist_row->hello_time != DEF_HELLO_TIME) {
-            vty_out(vty, "spanning-tree hello-time %ld%s",
+            vty_out(vty, "spanning-tree hello-time %" PRIi64 "%s",
                        *cist_row->hello_time, VTY_NEWLINE);
         }
         if (cist_row->forward_delay &&
                 *cist_row->forward_delay != DEF_FORWARD_DELAY) {
-            vty_out(vty, "spanning-tree forward-delay %ld%s",
+            vty_out(vty, "spanning-tree forward-delay %" PRIi64 "%s",
                                *cist_row->forward_delay, VTY_NEWLINE);
         }
         if (cist_row->max_age && *cist_row->max_age != DEF_MAX_AGE) {
-            vty_out(vty, "spanning-tree max-age %ld%s",
+            vty_out(vty, "spanning-tree max-age %" PRIi64 "%s",
                                 *cist_row->max_age, VTY_NEWLINE);
         }
         if (cist_row->max_hop_count &&
                 *cist_row->max_hop_count != DEF_MAX_HOPS) {
-            vty_out(vty, "spanning-tree max-hops %ld%s",
+            vty_out(vty, "spanning-tree max-hops %" PRIi64 "%s",
                                 *cist_row->max_hop_count, VTY_NEWLINE);
         }
         if (cist_row->tx_hold_count &&
                 *cist_row->tx_hold_count != DEF_HOLD_COUNT) {
-            vty_out(vty, "spanning-tree transmit-hold-count %ld%s",
+            vty_out(vty, "spanning-tree transmit-hold-count %" PRIi64 "%s",
                                 *cist_row->tx_hold_count, VTY_NEWLINE);
         }
     }
@@ -1292,7 +1293,7 @@ cli_show_mstp_intf_config() {
                 vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
-            vty_out(vty, "%4s%s %ld%s", "", "spanning-tree cost",
+            vty_out(vty, "%4s%s %" PRIi64 "%s", "", "spanning-tree cost",
                     *cist_port_row->admin_path_cost, VTY_NEWLINE);
         }
         if (cist_port_row->port_priority &&
@@ -1301,7 +1302,7 @@ cli_show_mstp_intf_config() {
                 vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                 if_print = false;
             }
-            vty_out(vty, "%4s%s %ld%s", "", "spanning-tree port-priority",
+            vty_out(vty, "%4s%s %" PRIi64 "%s", "", "spanning-tree port-priority",
                                  *cist_port_row->port_priority, VTY_NEWLINE);
         }
 
@@ -1326,7 +1327,7 @@ cli_show_mstp_intf_config() {
                         vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                         if_print = false;
                     }
-                    vty_out(vty, "%4s%s %ld %s %ld%s", "",
+                    vty_out(vty, "%4s%s %" PRIi64 " %s %" PRIi64 "%s", "",
                             "spanning-tree instance",
                             bridge_row->key_mstp_instances[j], "port-priority",
                             *mstp_port_row->port_priority, VTY_NEWLINE);
@@ -1337,7 +1338,7 @@ cli_show_mstp_intf_config() {
                         vty_out(vty, "%s%s", intf_name, VTY_NEWLINE);
                         if_print = false;
                     }
-                    vty_out(vty, "%4s%s %ld %s %ld%s", "",
+                    vty_out(vty, "%4s%s %" PRIi64 " %s %" PRIi64 "%s", "",
                             "spanning-tree instance",
                             bridge_row->key_mstp_instances[j], "cost",
                             *mstp_port_row->admin_path_cost, VTY_NEWLINE);
@@ -1760,7 +1761,7 @@ mstp_cli_remove_inst_vlan_map(const int64_t instid, const char *vlanid, struct o
             }
         }
         if (!vlan_row) {
-            vty_out(vty, "Error : Vlan ID-%ld is not created, aborting the VLAN's ",vlan_id);
+            vty_out(vty, "Error : Vlan ID-%" PRIi64 " is not created, aborting the VLAN's ",vlan_id);
             cli_do_config_abort(txn);
             return CMD_WARNING;
         }
